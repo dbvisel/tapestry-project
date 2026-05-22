@@ -176,7 +176,7 @@ export function fromTapestryDto(
   )
   const editableTapestryViewModel: EditableTapestryViewModel = {
     ...baseViewModel,
-    disableOptimizations: deoptimize,
+    disableOptimizations: mode === 'edit' || deoptimize,
     items: Object.fromEntries(tapestry.items?.map((item) => [item.id, { dto: item }]) ?? []),
     rels: Object.fromEntries(tapestry.rels?.map((rel) => [rel.id, { dto: rel }]) ?? []),
     groups: Object.fromEntries(tapestry.groups?.map((group) => [group.id, { dto: group }]) ?? []),

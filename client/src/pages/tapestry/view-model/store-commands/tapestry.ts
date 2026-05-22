@@ -66,6 +66,7 @@ export function setInteractionMode(
       selectItem(null),
       (model) => {
         model.interactionMode = mode
+        model.disableOptimizations = mode === 'edit'
       },
       setSnackbar(`You are in ${mode === 'edit' ? 'Author' : 'Viewer'} mode`),
     )
