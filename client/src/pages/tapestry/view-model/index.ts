@@ -39,6 +39,7 @@ export const ITEM_UI_COMPONENTS = [
   'createRelAnchorRight',
   'createRelAnchorBottom',
   'createRelAnchorLeft',
+  'commentsIndicator',
 ] as const
 export type ItemUIComponent = (typeof ITEM_UI_COMPONENTS)[number]
 
@@ -51,6 +52,7 @@ export const REL_UI_COMPONENTS = [
   'line-highlight-to',
   'from-arrowhead',
   'to-arrowhead',
+  'commentsIndicator',
 ] as const
 export type RelUIComponent = (typeof REL_UI_COMPONENTS)[number]
 
