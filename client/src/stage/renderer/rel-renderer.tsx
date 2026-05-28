@@ -1,4 +1,4 @@
-import { isPoint, Vector } from 'tapestry-core/src/lib/geometry'
+import { isPoint, Point, Vector } from 'tapestry-core/src/lib/geometry'
 import {
   computeRelCurvePoints,
   curveDirection,
@@ -10,8 +10,14 @@ import { IdMap } from 'tapestry-core/src/utils'
 import { TapestryStage } from 'tapestry-core-client/src/stage'
 import { RelEndpoint } from 'tapestry-core/src/data-format/schemas/rel'
 import { Store } from 'tapestry-core-client/src/lib/store'
+import {
+  CommentsIndicatorContainer,
+  CommentsIndicatorContainerState,
+} from './comments-indicator-container'
 
 export class EditorRelRenderer extends RelRenderer<EditableRelViewModel> {
+  private commentsIndicator?: CommentsIndicatorContainer
+
   constructor(
     editorStore: TapestryEditorStore,
     stage: TapestryStage,
@@ -66,5 +72,66 @@ export class EditorRelRenderer extends RelRenderer<EditableRelViewModel> {
         return dir
       },
     )
+  }
+
+  private obtainCommentIndicatorContainerState({
+    viewModel,
+    fromItem,
+    toItem,
+    theme,
+  }: RelRenderState<EditableRelViewModel>):
+    | (CommentsIndicatorContainerState & { position: Point })
+    | undefined {
+    if (!fromItem || !toItem) {
+      return
+    }
+
+    const curve = this.computeRelCurvePoints(viewModel, {
+      [fromItem.dto.id]: fromItem,
+      [toItem.dto.id]: toItem,
+    })
+
+    const bgColor = viewModel.dto.color
+
+    return {
+      position: {
+        x: curve.points.middle.x,
+        y: curve.points.middle.y,
+      },
+      bgColor,
+      fgColor: CommentsIndicatorContainer.getDefaultFgColor(bgColor, theme),
+      commentsCount: viewModel.commentThread?.size ?? 0,
+    }
+  }
+
+  private updateCommentIndicator(state: RelRenderState<EditableRelViewModel>) {
+    const indicatorState = this.obtainCommentIndicatorContainerState(state)
+    if (!indicatorState) {
+      return
+    }
+
+    if (indicatorState.commentsCount === 0) {
+      if (!this.commentsIndicator) {
+        return
+      }
+      this.commentsIndicator.visible = false
+    } else {
+      if (!this.commentsIndicator) {
+        this.commentsIndicator = new CommentsIndicatorContainer(indicatorState, 'center')
+        this.pixiContainer.addChild(this.commentsIndicator)
+      } else {
+        this.commentsIndicator.visible = true
+        this.commentsIndicator.update(indicatorState)
+      }
+      this.commentsIndicator.position = indicatorState.position
+    }
+  }
+
+  protected doRender(
+    state: RelRenderState<EditableRelViewModel>,
+    changedKeys: (keyof RelRenderState<EditableRelViewModel>)[],
+  ) {
+    super.doRender(state, changedKeys)
+    this.updateCommentIndicator(state)
   }
 }

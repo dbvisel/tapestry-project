@@ -12,6 +12,7 @@ import {
 } from '../../view-model/rel-geometry'
 import { ItemViewModel, RelViewModel, TapestryViewModel } from '../../view-model'
 import { TapestryStage } from '..'
+import { Theme, THEMES } from '../../theme/themes'
 
 const DEFAULT_REL_Z_INDEX = 0
 const LINE_SMOOTHNESS = 0.7
@@ -45,6 +46,7 @@ export interface RelRenderState<R extends RelViewModel> {
   fromItem?: ItemViewModel
   toItem?: ItemViewModel
   isHighlighted: boolean
+  theme: Theme
 }
 
 export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer<
@@ -90,6 +92,7 @@ export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer
       isHighlighted:
         isInteractive ||
         (isHoveredElement(pointerInteractionTarget) && pointerInteractionTarget.modelId === id),
+      theme: THEMES[store.get('theme')],
     }
   }
 

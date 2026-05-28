@@ -2,17 +2,11 @@ import clsx from 'clsx'
 import { ReactNode } from 'react'
 import { useObservable } from 'tapestry-core-client/src/components/lib/hooks/use-observable'
 import { TapestryItem as BaseTapestryItem } from 'tapestry-core-client/src/components/tapestry/items/tapestry-item'
-import { THEMES } from 'tapestry-core-client/src/theme/themes'
 import { computeRestrictedScale } from 'tapestry-core-client/src/view-model/utils'
 import { Size } from 'tapestry-core/src/lib/geometry'
 import { idMapToArray } from 'tapestry-core/src/utils'
-import { useDispatch, useTapestryData } from '../../../../pages/tapestry/tapestry-providers'
-import {
-  setInteractiveElement,
-  setSidePane,
-} from '../../../../pages/tapestry/view-model/store-commands/tapestry'
+import { useTapestryData } from '../../../../pages/tapestry/tapestry-providers'
 import { itemUpload } from '../../../../services/item-upload'
-import { CommentsIndicator } from '../../../comments-indicator'
 import { UploadIndicator } from '../../../upload-indicator'
 import { ResizeHandles } from '../../resize-handles'
 import styles from './styles.module.css'
@@ -25,14 +19,12 @@ export interface TapestryItemProps {
 
 export function TapestryItem({ id, children, halo }: TapestryItemProps) {
   const dto = useTapestryData(`items.${id}.dto`)!
-  const commentThread = useTapestryData(`items.${id}.commentThread`)
   const resizeState = useTapestryData(`items.${id}.resizeState`)
-  const {
-    interactiveElement,
-    interactionMode,
-    theme: themeName,
-  } = useTapestryData(['interactiveElement', 'interactionMode', 'theme', 'viewport'])
-  const dispatch = useDispatch()
+  const { interactiveElement, interactionMode } = useTapestryData([
+    'interactiveElement',
+    'interactionMode',
+    'viewport',
+  ])
   const isEditMode = interactionMode === 'edit'
 
   const isContentInteractive = id === interactiveElement?.modelId
@@ -48,24 +40,7 @@ export function TapestryItem({ id, children, halo }: TapestryItemProps) {
         root: styles.root,
         hitArea: styles.hitArea,
       }}
-      title={
-        <>
-          <span>{dto.title}</span>
-          {commentThread?.size && (
-            <CommentsIndicator
-              n={commentThread.size}
-              theme={THEMES[themeName]}
-              style={{ pointerEvents: 'auto' }}
-              onClick={() => {
-                dispatch(
-                  setInteractiveElement({ modelType: 'item', modelId: id }),
-                  setSidePane('inline-comments'),
-                )
-              }}
-            />
-          )}
-        </>
-      }
+      title={<span>{dto.title}</span>}
       overlay={
         <>
           {item?.state === 'uploading' && (

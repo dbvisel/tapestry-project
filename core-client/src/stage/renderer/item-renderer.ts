@@ -1,4 +1,4 @@
-import { Rectangle, Texture } from 'pixi.js'
+import { Container, Rectangle, Texture } from 'pixi.js'
 import { TapestryStage } from '..'
 import { Store } from '../../lib/store'
 import { ItemViewModel, TapestryViewModel } from '../../view-model'
@@ -6,7 +6,7 @@ import { obtainShadowNineSlice, ShadowNineSlice } from './shadow-texture-cache'
 import { TapestryElementRenderer } from './tapestry-element-renderer'
 import { ThumbnailContainer, ThumbnailContainerState } from './thumbnail-container'
 import { IdMap } from 'tapestry-core/src/utils'
-import { THEMES } from '../../theme/themes'
+import { Theme, THEMES } from '../../theme/themes'
 import { LiteralColor } from '../../theme/types'
 import { getItemOverlayScale } from '../../view-model/utils'
 import { roundToPrecision } from 'tapestry-core/src/lib/algebra'
@@ -17,8 +17,7 @@ export interface ItemRenderState<I extends ItemViewModel> {
   viewModel: I
   isInteractive: boolean
   disableOptimizations?: boolean
-  iconColor?: LiteralColor
-  iconBackgroundColor?: LiteralColor
+  theme: Theme
   dropShadow?: ShadowNineSlice
 }
 
@@ -96,16 +95,20 @@ export class ItemRenderer<I extends ItemViewModel> extends TapestryElementRender
   ItemRenderState<I>
 > {
   private thumbnail: ThumbnailContainer
+  // XXX: Here we assume there is a UI component called "dragArea" (see ItemController)
+  // Maybe we should generalize this concept in some way as Tapestry viewer applications
+  // would not have a "drag" area.
+  private dragArea: Container
 
   constructor(store: Store<TapestryViewModel>, stage: TapestryStage, viewModel: I) {
     super(store, stage, viewModel)
-    this.thumbnail = new ThumbnailContainer(
-      null,
-      { borderRadius: 8, thumbnailPlacement: viewModel.dto.type === 'image' ? 'stretch' : 'cover' },
-      { label: `thumbnail-container-${viewModel.dto.id}`, interactiveChildren: false },
-    )
+    this.thumbnail = new ThumbnailContainer(null, {
+      borderRadius: 8,
+      thumbnailPlacement: viewModel.dto.type === 'image' ? 'stretch' : 'cover',
+    })
+    this.dragArea = new Container({ label: 'dragArea', eventMode: 'static' })
     this.pixiContainer.addChild(this.thumbnail)
-    this.pixiContainer.eventMode = 'static'
+    this.pixiContainer.addChild(this.dragArea)
   }
 
   protected doRender(state: ItemRenderState<I>): void {
@@ -118,13 +121,11 @@ export class ItemRenderer<I extends ItemViewModel> extends TapestryElementRender
     store: Store<TapestryViewModel>,
     stage: TapestryStage,
   ): ItemRenderState<I> {
-    const theme = THEMES[store.get('theme')]
     return {
       viewModel,
       isInteractive: store.get('interactiveElement.modelId') === viewModel.dto.id,
       disableOptimizations: store.get('disableOptimizations'),
-      iconColor: theme.color('background.primary'),
-      iconBackgroundColor: theme.color('background.mono'),
+      theme: THEMES[store.get('theme')],
       dropShadow: viewModel.dto.dropShadow
         ? obtainShadowNineSlice(stage.pixi.tapestry.app.renderer, 8)
         : undefined,
@@ -133,15 +134,14 @@ export class ItemRenderer<I extends ItemViewModel> extends TapestryElementRender
 
   private updateHitArea({ viewModel }: ItemRenderState<I>) {
     const { position, size } = viewModel.dto
-    this.pixiContainer.hitArea = new Rectangle(position.x, position.y, size.width, size.height)
+    this.dragArea.hitArea = new Rectangle(position.x, position.y, size.width, size.height)
   }
 
   private updateThumbnail({
     viewModel,
     isInteractive,
     disableOptimizations,
-    iconColor,
-    iconBackgroundColor,
+    theme,
     dropShadow,
   }: ItemRenderState<I>) {
     const snapshot = viewModel.snapshotId && snapshotRegistry[viewModel.snapshotId]
@@ -154,7 +154,11 @@ export class ItemRenderer<I extends ItemViewModel> extends TapestryElementRender
       this.thumbnail.position = position
       this.thumbnail.update({
         size,
-        icon: this.obtainIconOverlay(viewModel, iconColor, iconBackgroundColor),
+        icon: this.obtainIconOverlay(
+          viewModel,
+          theme.color('background.primary'),
+          theme.color('background.mono'),
+        ),
         dropShadow,
       })
     }
