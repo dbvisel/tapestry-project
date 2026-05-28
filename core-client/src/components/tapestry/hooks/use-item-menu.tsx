@@ -49,6 +49,7 @@ export function useItemMenu<const M extends string>(
       if (menuItem === 'focus') {
         return {
           element: <FocusButton onFocus={() => focusElement(itemId)} />,
+          key: 'focus',
           tooltip: { side: 'bottom', children: <ShortcutLabel text="Focus">F</ShortcutLabel> },
         }
       }

@@ -20,6 +20,7 @@ export type SubmenuIds<T, D extends number = 10> = [D] extends [never]
 
 export interface ToolbarElement {
   element: ReactElement
+  key?: string
   tooltip?: TooltipProps
   badge?: string | boolean
 }
@@ -46,7 +47,7 @@ export function isMultiLineMenu(items: MenuItems | ReactNode): items is MaybeMen
   return Array.isArray(items) && Array.isArray(items[0])
 }
 
-function isToolbarElement(elem: ReactElement | ToolbarElement): elem is ToolbarElement {
+function isToolbarElement(elem: SimpleMenuItem): elem is ToolbarElement {
   return !!(elem as ToolbarElement).element
 }
 
@@ -94,7 +95,7 @@ function ToolbarRow({ items, selectedSubmenu }: ToolbarRowProps) {
                 />
               </div>
             ) : (
-              <SimpleMenuItem key={index} ui={item} />
+              <SimpleMenuItem key={(isToolbarElement(item) && item.key) || index} ui={item} />
             ),
           )
         : items}
