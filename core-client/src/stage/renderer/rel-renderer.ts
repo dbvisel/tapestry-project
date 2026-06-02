@@ -17,6 +17,8 @@ import { Theme, THEMES } from '../../theme/themes'
 const DEFAULT_REL_Z_INDEX = 0
 const LINE_SMOOTHNESS = 0.7
 
+const MIN_LINE_STROKE_VISIBLE_WIDTH = 0.7
+
 export function drawCurve(gfx: Graphics, curve: Curve, part: 'full' | 'head' | 'tail' = 'full') {
   const start = part === 'tail' ? curve.points.middle : curve.points.start
   gfx.moveTo(start.x, start.y)
@@ -47,6 +49,7 @@ export interface RelRenderState<R extends RelViewModel> {
   toItem?: ItemViewModel
   isHighlighted: boolean
   theme: Theme
+  scale: number
 }
 
 export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer<
@@ -93,6 +96,7 @@ export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer
         isInteractive ||
         (isHoveredElement(pointerInteractionTarget) && pointerInteractionTarget.modelId === id),
       theme: THEMES[store.get('theme')],
+      scale: store.get('viewport.transform.scale'),
     }
   }
 
@@ -119,7 +123,10 @@ export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer
     })
 
     const arrowHeadSize = REL_ARROWHEAD_SIZES[weight]
-    const lineStrokeWidth = REL_LINE_WIDTHS[weight]
+    const lineStrokeWidth = Math.max(
+      REL_LINE_WIDTHS[weight],
+      MIN_LINE_STROKE_VISIBLE_WIDTH / state.scale,
+    )
 
     // Instead of a single cubic Bezier curve, draw two quadratic Bezier curves joined in the middle.
     // This way we will have two separate segments of the curve and we will be able to handle
