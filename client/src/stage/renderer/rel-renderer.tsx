@@ -14,6 +14,7 @@ import {
   CommentsIndicatorContainer,
   CommentsIndicatorContainerState,
 } from './comments-indicator-container'
+import { THEMES } from 'tapestry-core-client/src/theme/themes'
 
 export class EditorRelRenderer extends RelRenderer<EditableRelViewModel> {
   private commentsIndicator?: CommentsIndicatorContainer
@@ -99,7 +100,7 @@ export class EditorRelRenderer extends RelRenderer<EditableRelViewModel> {
         y: curve.points.middle.y,
       },
       bgColor,
-      fgColor: CommentsIndicatorContainer.getDefaultFgColor(bgColor, theme),
+      fgColor: CommentsIndicatorContainer.getDefaultFgColor(bgColor, THEMES[theme]),
       commentsCount: viewModel.commentThread?.size ?? 0,
     }
   }

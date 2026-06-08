@@ -12,10 +12,15 @@ import {
 } from '../../view-model/rel-geometry'
 import { ItemViewModel, RelViewModel, TapestryViewModel } from '../../view-model'
 import { TapestryStage } from '..'
-import { Theme, THEMES } from '../../theme/themes'
+import { ThemeName } from '../../theme/themes'
+import { log } from 'tapestry-core/src/lib/algebra'
 
 const DEFAULT_REL_Z_INDEX = 0
 const LINE_SMOOTHNESS = 0.7
+
+const SCALE_LOG_BASE = 1.3
+const MAX_LINE_STROKE_VISIBLE_SHRINK = 0.35
+const MAX_ARROW_VISIBLE_SHRINK = 0.15
 
 export function drawCurve(gfx: Graphics, curve: Curve, part: 'full' | 'head' | 'tail' = 'full') {
   const start = part === 'tail' ? curve.points.middle : curve.points.start
@@ -46,7 +51,9 @@ export interface RelRenderState<R extends RelViewModel> {
   fromItem?: ItemViewModel
   toItem?: ItemViewModel
   isHighlighted: boolean
-  theme: Theme
+  theme: ThemeName
+  lineStrokeScale: number
+  arrowScale: number
 }
 
 export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer<
@@ -85,6 +92,10 @@ export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer
     const toItem = items[to.itemId]
     const isInteractive = id === store.get('interactiveElement.modelId')
     const pointerInteractionTarget = store.get('pointerInteraction.target')
+
+    const discreteScale =
+      SCALE_LOG_BASE ** Math.floor(log(SCALE_LOG_BASE, store.get('viewport.transform.scale')))
+
     return {
       viewModel,
       fromItem,
@@ -92,7 +103,9 @@ export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer
       isHighlighted:
         isInteractive ||
         (isHoveredElement(pointerInteractionTarget) && pointerInteractionTarget.modelId === id),
-      theme: THEMES[store.get('theme')],
+      theme: store.get('theme'),
+      lineStrokeScale: Math.max(1, MAX_LINE_STROKE_VISIBLE_SHRINK / discreteScale),
+      arrowScale: Math.max(1, MAX_ARROW_VISIBLE_SHRINK / discreteScale),
     }
   }
 
@@ -118,8 +131,8 @@ export class RelRenderer<R extends RelViewModel> extends TapestryElementRenderer
       [state.toItem.dto.id]: state.toItem,
     })
 
-    const arrowHeadSize = REL_ARROWHEAD_SIZES[weight]
-    const lineStrokeWidth = REL_LINE_WIDTHS[weight]
+    const arrowHeadSize = REL_ARROWHEAD_SIZES[weight] * state.arrowScale
+    const lineStrokeWidth = REL_LINE_WIDTHS[weight] * state.lineStrokeScale
 
     // Instead of a single cubic Bezier curve, draw two quadratic Bezier curves joined in the middle.
     // This way we will have two separate segments of the curve and we will be able to handle

@@ -170,3 +170,7 @@ export function roundToPrecision(
 ) {
   return Math[method](x / precision) * precision
 }
+
+export function log(base: number, x: number) {
+  return Math.log(x) / Math.log(base)
+}

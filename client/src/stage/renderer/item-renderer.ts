@@ -10,6 +10,7 @@ import {
   CommentsIndicatorContainerState,
 } from './comments-indicator-container'
 import { Point } from 'tapestry-core/src/lib/geometry'
+import { THEMES } from 'tapestry-core-client/src/theme/themes'
 
 const DEFAULT_ITEM_Z_INDEX = 1
 
@@ -38,7 +39,7 @@ export class EditorItemRenderer<T extends EditableItemViewModel> extends ItemRen
       this.preview
         .clear()
         .roundRect(left, top, width, height, ITEM_BORDER_RADIUS)
-        .fill({ color: theme.color('background.secondaryInverse'), alpha: 0.25 })
+        .fill({ color: THEMES[theme].color('background.secondaryInverse'), alpha: 0.25 })
 
       if (!this.preview.parent) {
         this.pixiContainer.addChild(this.preview)
@@ -56,7 +57,7 @@ export class EditorItemRenderer<T extends EditableItemViewModel> extends ItemRen
       dto: { size, position },
     } = state.viewModel
 
-    const bgColor = state.theme.color('background.disabled')
+    const bgColor = THEMES[state.theme].color('background.disabled')
 
     return {
       position: {
@@ -64,7 +65,7 @@ export class EditorItemRenderer<T extends EditableItemViewModel> extends ItemRen
         y: position.y - COMMENTS_INDICATOR_OFFSET,
       },
       bgColor,
-      fgColor: CommentsIndicatorContainer.getDefaultFgColor(bgColor, state.theme),
+      fgColor: CommentsIndicatorContainer.getDefaultFgColor(bgColor, THEMES[state.theme]),
       commentsCount: commentThread?.size ?? 0,
     }
   }

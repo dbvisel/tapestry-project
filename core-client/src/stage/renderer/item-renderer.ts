@@ -6,7 +6,7 @@ import { obtainShadowNineSlice, ShadowNineSlice } from './shadow-texture-cache'
 import { TapestryElementRenderer } from './tapestry-element-renderer'
 import { ThumbnailContainer, ThumbnailContainerState } from './thumbnail-container'
 import { IdMap } from 'tapestry-core/src/utils'
-import { Theme, THEMES } from '../../theme/themes'
+import { ThemeName, THEMES } from '../../theme/themes'
 import { LiteralColor } from '../../theme/types'
 import { getItemOverlayScale } from '../../view-model/utils'
 import { roundToPrecision } from 'tapestry-core/src/lib/algebra'
@@ -17,7 +17,7 @@ export interface ItemRenderState<I extends ItemViewModel> {
   viewModel: I
   isInteractive: boolean
   disableOptimizations?: boolean
-  theme: Theme
+  theme: ThemeName
   dropShadow?: ShadowNineSlice
 }
 
@@ -125,7 +125,7 @@ export class ItemRenderer<I extends ItemViewModel> extends TapestryElementRender
       viewModel,
       isInteractive: store.get('interactiveElement.modelId') === viewModel.dto.id,
       disableOptimizations: store.get('disableOptimizations'),
-      theme: THEMES[store.get('theme')],
+      theme: store.get('theme'),
       dropShadow: viewModel.dto.dropShadow
         ? obtainShadowNineSlice(stage.pixi.tapestry.app.renderer, 8)
         : undefined,
@@ -156,8 +156,8 @@ export class ItemRenderer<I extends ItemViewModel> extends TapestryElementRender
         size,
         icon: this.obtainIconOverlay(
           viewModel,
-          theme.color('background.primary'),
-          theme.color('background.mono'),
+          THEMES[theme].color('background.primary'),
+          THEMES[theme].color('background.mono'),
         ),
         dropShadow,
       })
