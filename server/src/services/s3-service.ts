@@ -43,6 +43,7 @@ class S3Service {
         Bucket,
         Key: key,
         ContentType: mimeType,
+        CacheControl: "no-store, no-cache, must-revalidate, max-age=0", // <-- IMPORTANT
       }),
       expiresIn,
     )
