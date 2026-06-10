@@ -57,7 +57,7 @@ services:
       TAPESTRY_THUMBNAIL_GENERATION_TIMEOUT: 600_000
       S3_CLEAN_UP_CRON_PATTERN: ${S3_CLEAN_UP_CRON_PATTERN}
     ports:
-      - 3201:3000
+      - 3000:3000
     # networks:
     #   - traefik
     #   - database
