@@ -145,11 +145,11 @@ services:
       MINIO_API_CORS_ALLOW_CREDENTIALS_WITH_WILDCARD: "on"
     # networks:
     #   - minio
-    command: server --address ":3202" --console-address ":9001" /data
+    command: server --address ":9000" --console-address ":9001" /data
     volumes:
       - minio-data:/data
     ports:
-      - "3202:3202"
+      - "9000:9000"
       - "9001:9001"
     # command: server /data
 
