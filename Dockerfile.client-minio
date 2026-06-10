@@ -14,8 +14,8 @@ ADD core-client/ /app/core-client
 ADD shared/ /app/shared
 ADD client/ /app/client
 
-#ARG VITE_API_URL="http://localhost:3202/api"
-ARG VITE_API_URL="https://tapestries-api.archive.org/api"
+ARG VITE_API_URL="http://localhost:3202/api"
+#ARG VITE_API_URL="https://tapestries-api.archive.org/api"
 ARG VITE_AUTH_PROVIDER="ia"
 ARG VITE_GOOGLE_CLIENT_ID=""
 ARG VITE_BUG_REPORT_FORM_URL="https://docs.google.com/forms/d/e/1FAIpQLSeUKYyfCund4xOECGbJuI8rat8fzL1-Qjp4pzgYkxK95AwusQ/viewform?usp=pp_url&entry.222002216=:browserName&entry.1351984793=:browserVersion&entry.2107745582=:operatingSystem&entry.412753743=:tapestryInformation"
