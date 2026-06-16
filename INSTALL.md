@@ -34,7 +34,7 @@ images to build, and open the URL it prints at the end — by default
 | **Backend Sentry DSN** | empty | Optional. Sentry DSN for the **API server**'s crash reporting (a separate Sentry project from the frontend). Leave blank to disable. |
 
 On a first run, every prompt's default and all other values come from the
-`dummyenv.txt` sample. On a re-run, they instead come from your existing `.env`
+`.env.sample` template. On a re-run, they instead come from your existing `.env`
 (see [Re-running](#re-running--starting-fresh) below).
 
 ## What it does for you
@@ -47,7 +47,7 @@ On a first run, every prompt's default and all other values come from the
 - **Derives the client URLs** from the host you entered (`VIEWER_URL`,
   `EXTERNAL_SERVER_URL`, `VITE_API_URL`) so they stay consistent.
 - **Writes `.env`** by replacing only the relevant keys in the base file (the
-  `dummyenv.txt` sample on a first run, or your existing `.env` on a re-run),
+  `.env.sample` template on a first run, or your existing `.env` on a re-run),
   leaving every other key untouched.
 - **Keeps frontend/backend Sentry DSNs and the bug-report URL in sync** between
   their runtime keys and the `VITE_*` build-arg counterparts the client needs.
@@ -95,7 +95,7 @@ service on startup.
 ## Re-running / starting fresh
 
 **Re-running is safe.** When an existing `.env` is found, the installer uses
-*its* saved values as the prompt defaults (not the `dummyenv.txt` sample), so
+*its* saved values as the prompt defaults (not the `.env.sample` template), so
 you can press Enter through anything you don't want to change. Crucially, it
 **keeps the existing secrets** (`SECRET_KEY`, `DB_PASS`, `AWS_SECRET_ACCESS_KEY`)
 rather than regenerating them, so your existing database and asset volumes keep

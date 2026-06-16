@@ -3,7 +3,7 @@
 # setup.sh - Minimal interactive installer for the Tapestry MinIO stack.
 #
 # Collects a small set of values, generates secrets, writes a .env file
-# (using dummyenv.txt as the template for all other defaults), and then
+# (using .env.sample as the template for all other defaults), and then
 # brings the stack up with docker compose.
 #
 # Usage:
@@ -17,7 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-TEMPLATE="dummyenv.txt"
+TEMPLATE=".env.sample"
 COMPOSE_FILE="docker-compose.minio.yml"
 ENV_FILE=".env"
 START=1
@@ -102,7 +102,7 @@ gen_secret() { openssl rand -hex 24; }   # 48 hex chars, URL- and shell-safe
 # --- choose where defaults come from ------------------------------------------
 # On a re-run we want the questions pre-filled from the values already saved to
 # the existing .env (and the existing secrets kept untouched). On a first run
-# there is no .env, so we fall back to the dummyenv.txt sample.
+# there is no .env, so we fall back to the .env.sample template.
 if [ -f "$ENV_FILE" ]; then
   SOURCE="$ENV_FILE"
   RERUN=1
@@ -167,12 +167,20 @@ if [ "$RERUN" -eq 1 ]; then
   SECRET_KEY="$(get_env SECRET_KEY "$SOURCE")"
   DB_PASS="$(get_env DB_PASS "$SOURCE")"
   AWS_SECRET_ACCESS_KEY="$(get_env AWS_SECRET_ACCESS_KEY "$SOURCE")"
+  MINIO_CONSOLE_SECRET_KEY="$(get_env MINIO_CONSOLE_SECRET_KEY "$SOURCE")"
+  VAULT_ROLE_ID="$(get_env VAULT_ROLE_ID "$SOURCE")"
+  VAULT_SECRET_ID="$(get_env VAULT_SECRET_ID "$SOURCE")"
   SECRETS_NOTE="kept from existing $ENV_FILE"
 fi
 # Generate any that are missing (first run, or a key absent from the .env).
-[ -n "${SECRET_KEY:-}" ]            || { SECRET_KEY="$(openssl rand -hex 32)"; SECRETS_NOTE="generated"; }
-[ -n "${DB_PASS:-}" ]               || { DB_PASS="$(gen_secret)"; SECRETS_NOTE="generated"; }
-[ -n "${AWS_SECRET_ACCESS_KEY:-}" ] || { AWS_SECRET_ACCESS_KEY="$(gen_secret)"; SECRETS_NOTE="generated"; }
+# VAULT_ROLE_ID/VAULT_SECRET_ID can be any consistent pair: the dev vault seeds
+# its approle from these same values (see deployment/vault/start-dev.sh).
+[ -n "${SECRET_KEY:-}" ]               || { SECRET_KEY="$(openssl rand -hex 32)"; SECRETS_NOTE="generated"; }
+[ -n "${DB_PASS:-}" ]                  || { DB_PASS="$(gen_secret)"; SECRETS_NOTE="generated"; }
+[ -n "${AWS_SECRET_ACCESS_KEY:-}" ]    || { AWS_SECRET_ACCESS_KEY="$(gen_secret)"; SECRETS_NOTE="generated"; }
+[ -n "${MINIO_CONSOLE_SECRET_KEY:-}" ] || { MINIO_CONSOLE_SECRET_KEY="$(gen_secret)"; SECRETS_NOTE="generated"; }
+[ -n "${VAULT_ROLE_ID:-}" ]            || { VAULT_ROLE_ID="$(gen_secret)"; SECRETS_NOTE="generated"; }
+[ -n "${VAULT_SECRET_ID:-}" ]          || { VAULT_SECRET_ID="$(gen_secret)"; SECRETS_NOTE="generated"; }
 : "${SECRETS_NOTE:=generated}"
 
 # ---- write the env file ------------------------------------------------------
@@ -193,12 +201,15 @@ set_env IA_SECRET             "$IA_SECRET"
 set_env BUG_REPORT_FORM_URL   "$BUG_REPORT_FORM_URL"
 set_env SENTRY_DSN_CLIENT     "$SENTRY_DSN_CLIENT"
 set_env SENTRY_DSN_SERVER     "$SENTRY_DSN_SERVER"
-set_env SECRET_KEY            "$SECRET_KEY"
-set_env DB_PASS               "$DB_PASS"
-set_env AWS_SECRET_ACCESS_KEY "$AWS_SECRET_ACCESS_KEY"
+set_env SECRET_KEY               "$SECRET_KEY"
+set_env DB_PASS                  "$DB_PASS"
+set_env AWS_SECRET_ACCESS_KEY    "$AWS_SECRET_ACCESS_KEY"
+set_env MINIO_CONSOLE_SECRET_KEY "$MINIO_CONSOLE_SECRET_KEY"
+set_env VAULT_ROLE_ID            "$VAULT_ROLE_ID"
+set_env VAULT_SECRET_ID          "$VAULT_SECRET_ID"
 # Inside the compose network the vault service is reachable as 'vault',
-# not localhost; fix the template default so the server can reach it.
-set_env VAULT_ADDR            "http://vault:8200"
+# not localhost; the sample already sets this, but enforce it for older .env files.
+set_env VAULT_ADDR               "http://vault:8200"
 
 # build-time (client) values — baked into the client image, kept in sync with
 # their runtime counterparts above.
@@ -216,7 +227,7 @@ info "  Auth provider ... $AUTH_PROVIDER"
 info "  Bug report URL .. ${BUG_REPORT_FORM_URL:-(none)}"
 info "  Frontend Sentry . ${SENTRY_DSN_CLIENT:-(none)}"
 info "  Backend Sentry .. ${SENTRY_DSN_SERVER:-(none)}"
-info "  Secrets ......... $SECRETS_NOTE (SECRET_KEY, DB_PASS, AWS_SECRET_ACCESS_KEY)"
+info "  Secrets ......... $SECRETS_NOTE (SECRET_KEY, DB_PASS, AWS/MinIO + Vault creds)"
 
 # --- start the stack ----------------------------------------------------------
 if [ "$START" -eq 0 ]; then
