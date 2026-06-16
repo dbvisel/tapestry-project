@@ -127,11 +127,22 @@ services:
       - IPC_LOCK
     command: ["/scripts/start-dev.sh"]
 
-  mc: # MinIO Client
+  mc: # MinIO Client - one-shot job that creates the bucket on startup
     image: minio/mc:latest
-    entrypoint: ["sleep", "infinity"]
     depends_on:
       - minio
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 \"$$AWS_ACCESS_KEY_ID\" \"$$AWS_SECRET_ACCESS_KEY\" >/dev/null 2>&1; do
+        echo 'waiting for minio to be ready...'; sleep 1;
+      done;
+      mc mb --ignore-existing local/\"$$AWS_S3_BUCKET_NAME\";
+      echo \"bucket '$$AWS_S3_BUCKET_NAME' is ready\";
+      "
   
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
