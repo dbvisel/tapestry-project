@@ -211,13 +211,11 @@ set_env VAULT_SECRET_ID          "$VAULT_SECRET_ID"
 # not localhost; the sample already sets this, but enforce it for older .env files.
 set_env VAULT_ADDR               "http://vault:8200"
 
-# build-time (client) values — baked into the client image, kept in sync with
-# their runtime counterparts above.
+# VITE_API_URL is the only VITE_-prefixed key the compose file reads directly.
+# The client's other build args (VITE_AUTH_PROVIDER, VITE_BUG_REPORT_FORM_URL,
+# VITE_SENTRY_DSN, ...) are mapped by docker-compose.minio.yml from the non-VITE
+# keys set above, so there's nothing else to write here.
 set_env VITE_API_URL              "$VITE_API_URL"
-set_env VITE_AUTH_PROVIDER        "$AUTH_PROVIDER"
-set_env VITE_GOOGLE_CLIENT_ID     "$GOOGLE_CLIENT_ID"
-set_env VITE_BUG_REPORT_FORM_URL  "$BUG_REPORT_FORM_URL"
-set_env VITE_SENTRY_DSN_CLIENT    "$SENTRY_DSN_CLIENT"
 
 ok "Wrote $ENV_FILE"
 info "  Host ............ $HOST"
