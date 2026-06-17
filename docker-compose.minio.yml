@@ -113,19 +113,45 @@ services:
       - "${REDIS_PORT:-6379}:6379"
 
   vault:
-    image: hashicorp/vault
+    image: hashicorp/vault:1.20
     container_name: vault
     ports:
       - "8200:8200"
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: root
-      ROLE_ID: ${VAULT_ROLE_ID}
-      SECRET_ID: ${VAULT_SECRET_ID}
-    volumes:
-      - ./deployment/vault:/scripts
     cap_add:
       - IPC_LOCK
-    command: ["/scripts/start-dev.sh"]
+    environment:
+      # Dev-mode vault: in-memory, auto-unsealed. The approle is (re)seeded on
+      # every start from the same VAULT_ROLE_ID/VAULT_SECRET_ID the server uses,
+      # so those values just need to be consistent — placeholders are fine.
+      # Self-contained here (no mounted script) so it can't silently fail to run.
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_TOKEN: root
+      ROLE_ID: ${VAULT_ROLE_ID}
+      SECRET_ID: ${VAULT_SECRET_ID}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        vault server -dev -dev-root-token-id="$$VAULT_DEV_ROOT_TOKEN_ID" -dev-listen-address=0.0.0.0:8200 &
+        VAULT_PID=$$!
+        echo "waiting for vault to be ready..."
+        until vault status >/dev/null 2>&1; do sleep 1; done
+        vault auth enable approle 2>/dev/null || echo "approle already enabled"
+        echo 'path "secret/data/users/*" { capabilities = ["create", "update", "read", "delete"] }' \
+          | vault policy write tapestries-policy -
+        vault write auth/approle/role/tapestries \
+          token_policies=tapestries-policy token_ttl=1h token_max_ttl=4h \
+          role_id="$$ROLE_ID"
+        vault write auth/approle/role/tapestries/custom-secret-id secret_id="$$SECRET_ID" >/dev/null
+        echo "vault approle 'tapestries' seeded; vault ready"
+        wait $$VAULT_PID
+    healthcheck:
+      test: ["CMD-SHELL", "vault read auth/approle/role/tapestries >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
   mc: # MinIO Client - one-shot job that creates the bucket on startup
     image: minio/mc:latest
