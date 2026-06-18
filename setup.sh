@@ -99,6 +99,49 @@ set_env() {
 
 gen_secret() { openssl rand -hex 24; }   # 48 hex chars, URL- and shell-safe
 
+# print_s3_setup : print the manual AWS-side steps needed before uploads work.
+# Reads AWS_S3_BUCKET_NAME / AWS_REGION / VIEWER_URL (globals) at call time.
+print_s3_setup() {
+  printf '\n%s== Amazon S3 setup (do this in your AWS account) ==%s\n' "$BOLD" "$RESET"
+  printf 'Bucket "%s" in region "%s" must exist and be configured as below before uploads work.\n' \
+    "$AWS_S3_BUCKET_NAME" "$AWS_REGION"
+
+  printf '\n%s1) CORS%s — browser uploads/downloads use presigned URLs (cross-origin).\n' "$BOLD" "$RESET"
+  printf '   Save as cors.json, then:\n'
+  printf '     aws s3api put-bucket-cors --bucket %s --cors-configuration file://cors.json\n' "$AWS_S3_BUCKET_NAME"
+  cat <<EOF
+{
+  "CORSRules": [
+    {
+      "AllowedOrigins": ["${VIEWER_URL}"],
+      "AllowedMethods": ["GET", "PUT", "POST", "HEAD"],
+      "AllowedHeaders": ["*"],
+      "ExposeHeaders": ["ETag"]
+    }
+  ]
+}
+EOF
+
+  printf '\n%s2) IAM%s — the credentials (or instance role) need these permissions:\n' "$BOLD" "$RESET"
+  cat <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::${AWS_S3_BUCKET_NAME}",
+        "arn:aws:s3:::${AWS_S3_BUCKET_NAME}/*"
+      ]
+    }
+  ]
+}
+EOF
+  printf '\n%s3)%s If you left the credentials blank, the server uses the default AWS\n' "$BOLD" "$RESET"
+  printf '   credential chain (EC2 instance role / ~/.aws / AWS_* env on the host).\n'
+}
+
 # --- choose where defaults come from ------------------------------------------
 # On a re-run we want the questions pre-filled from the values already saved to
 # the existing .env (and the existing secrets kept untouched). On a first run
@@ -166,7 +209,6 @@ VITE_API_URL="http://${HOST}:3000/api"
 if [ "$RERUN" -eq 1 ]; then
   SECRET_KEY="$(get_env SECRET_KEY "$SOURCE")"
   DB_PASS="$(get_env DB_PASS "$SOURCE")"
-  AWS_SECRET_ACCESS_KEY="$(get_env AWS_SECRET_ACCESS_KEY "$SOURCE")"
   MINIO_CONSOLE_SECRET_KEY="$(get_env MINIO_CONSOLE_SECRET_KEY "$SOURCE")"
   VAULT_ROLE_ID="$(get_env VAULT_ROLE_ID "$SOURCE")"
   VAULT_SECRET_ID="$(get_env VAULT_SECRET_ID "$SOURCE")"
@@ -177,11 +219,56 @@ fi
 # its approle from these same values (see deployment/vault/start-dev.sh).
 [ -n "${SECRET_KEY:-}" ]               || { SECRET_KEY="$(openssl rand -hex 32)"; SECRETS_NOTE="generated"; }
 [ -n "${DB_PASS:-}" ]                  || { DB_PASS="$(gen_secret)"; SECRETS_NOTE="generated"; }
-[ -n "${AWS_SECRET_ACCESS_KEY:-}" ]    || { AWS_SECRET_ACCESS_KEY="$(gen_secret)"; SECRETS_NOTE="generated"; }
 [ -n "${MINIO_CONSOLE_SECRET_KEY:-}" ] || { MINIO_CONSOLE_SECRET_KEY="$(gen_secret)"; SECRETS_NOTE="generated"; }
 [ -n "${VAULT_ROLE_ID:-}" ]            || { VAULT_ROLE_ID="$(gen_secret)"; SECRETS_NOTE="generated"; }
 [ -n "${VAULT_SECRET_ID:-}" ]          || { VAULT_SECRET_ID="$(gen_secret)"; SECRETS_NOTE="generated"; }
 : "${SECRETS_NOTE:=generated}"
+
+# ---- storage backend: bundled MinIO or the user's own AWS S3 -----------------
+hdr "Storage backend"
+info "Where to store tapestry assets (uploaded images, generated thumbnails)."
+info "  minio - bundled, self-hosted S3 (no AWS account needed)"
+info "  aws   - your own Amazon S3 bucket"
+# Default to the previous choice on re-run (an empty AWS_ENDPOINT_URL == real AWS).
+if [ "$RERUN" -eq 1 ] && [ -z "$(get_env AWS_ENDPOINT_URL "$SOURCE")" ]; then
+  DEF_STORAGE=aws
+else
+  DEF_STORAGE=minio
+fi
+while :; do
+  ask STORAGE "Storage backend (minio/aws)" "$DEF_STORAGE"
+  STORAGE="${STORAGE:-minio}"
+  case "$STORAGE" in minio|aws) break ;; *) warn "Enter 'minio' or 'aws'." ;; esac
+done
+
+if [ "$STORAGE" = "aws" ]; then
+  info "Configure your Amazon S3 bucket (setup steps are printed at the end)."
+  ask AWS_REGION         "AWS region"      "$(get_env AWS_REGION "$SOURCE")"
+  AWS_REGION="${AWS_REGION:-us-east-1}"
+  ask AWS_S3_BUCKET_NAME "S3 bucket name"  "$(get_env AWS_S3_BUCKET_NAME "$SOURCE")"
+  info "Credentials: leave BOTH blank to use the host's default AWS credential chain"
+  info "(EC2 instance role / ~/.aws / AWS_* env on the server)."
+  ask AWS_ACCESS_KEY_ID     "AWS access key ID"     "$(get_env AWS_ACCESS_KEY_ID "$SOURCE")"
+  ask AWS_SECRET_ACCESS_KEY "AWS secret access key" "$(get_env AWS_SECRET_ACCESS_KEY "$SOURCE")"
+  # Empty endpoint => the SDK talks to real AWS; virtual-hosted style.
+  AWS_ENDPOINT_URL=""
+  AWS_S3_FORCE_PATH_STYLE="false"
+  COMPOSE_PROFILES_PREFIX=""
+  export COMPOSE_PROFILES=""
+else
+  # Bundled MinIO: keep the known-good local values; its secret is generated
+  # (or kept on re-run) like the other secrets.
+  AWS_REGION="$(get_env AWS_REGION "$SOURCE")";                 AWS_REGION="${AWS_REGION:-us-east-1}"
+  AWS_S3_BUCKET_NAME="$(get_env AWS_S3_BUCKET_NAME "$SOURCE")"; AWS_S3_BUCKET_NAME="${AWS_S3_BUCKET_NAME:-tabucket}"
+  AWS_ACCESS_KEY_ID="$(get_env AWS_ACCESS_KEY_ID "$SOURCE")";   AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-tapestries}"
+  AWS_ENDPOINT_URL="$(get_env AWS_ENDPOINT_URL "$SOURCE")";     AWS_ENDPOINT_URL="${AWS_ENDPOINT_URL:-http://localhost:9000}"
+  AWS_S3_FORCE_PATH_STYLE="true"
+  [ "$RERUN" -eq 1 ] && AWS_SECRET_ACCESS_KEY="$(get_env AWS_SECRET_ACCESS_KEY "$SOURCE")"
+  [ -n "${AWS_SECRET_ACCESS_KEY:-}" ] || { AWS_SECRET_ACCESS_KEY="$(gen_secret)"; SECRETS_NOTE="generated"; }
+  # The minio + mc services live behind the 'minio' compose profile.
+  COMPOSE_PROFILES_PREFIX="COMPOSE_PROFILES=minio "
+  export COMPOSE_PROFILES="minio"
+fi
 
 # ---- write the env file ------------------------------------------------------
 hdr "Writing $ENV_FILE"
@@ -203,8 +290,14 @@ set_env SENTRY_DSN_CLIENT     "$SENTRY_DSN_CLIENT"
 set_env SENTRY_DSN_SERVER     "$SENTRY_DSN_SERVER"
 set_env SECRET_KEY               "$SECRET_KEY"
 set_env DB_PASS                  "$DB_PASS"
-set_env AWS_SECRET_ACCESS_KEY    "$AWS_SECRET_ACCESS_KEY"
 set_env MINIO_CONSOLE_SECRET_KEY "$MINIO_CONSOLE_SECRET_KEY"
+# storage (MinIO or AWS S3) — values differ per backend, see the section above
+set_env AWS_ENDPOINT_URL         "$AWS_ENDPOINT_URL"
+set_env AWS_S3_FORCE_PATH_STYLE  "$AWS_S3_FORCE_PATH_STYLE"
+set_env AWS_REGION               "$AWS_REGION"
+set_env AWS_S3_BUCKET_NAME       "$AWS_S3_BUCKET_NAME"
+set_env AWS_ACCESS_KEY_ID        "$AWS_ACCESS_KEY_ID"
+set_env AWS_SECRET_ACCESS_KEY    "$AWS_SECRET_ACCESS_KEY"
 set_env VAULT_ROLE_ID            "$VAULT_ROLE_ID"
 set_env VAULT_SECRET_ID          "$VAULT_SECRET_ID"
 # Inside the compose network the vault service is reachable as 'vault',
@@ -222,16 +315,24 @@ info "  Host ............ $HOST"
 info "  Client URL ...... $VIEWER_URL"
 info "  API URL ......... $EXTERNAL_SERVER_URL"
 info "  Auth provider ... $AUTH_PROVIDER"
+if [ "$STORAGE" = "aws" ]; then
+  info "  Storage ......... AWS S3 (bucket '${AWS_S3_BUCKET_NAME}', region ${AWS_REGION})"
+else
+  info "  Storage ......... bundled MinIO (bucket '${AWS_S3_BUCKET_NAME}')"
+fi
 info "  Bug report URL .. ${BUG_REPORT_FORM_URL:-(none)}"
 info "  Frontend Sentry . ${SENTRY_DSN_CLIENT:-(none)}"
 info "  Backend Sentry .. ${SENTRY_DSN_SERVER:-(none)}"
 info "  Secrets ......... $SECRETS_NOTE (SECRET_KEY, DB_PASS, AWS/MinIO + Vault creds)"
 
 # --- start the stack ----------------------------------------------------------
+# COMPOSE_PROFILES (exported in the storage section) controls whether the
+# minio + mc services start: "minio" for the bundled backend, "" for AWS S3.
 if [ "$START" -eq 0 ]; then
   hdr "Done (config only)"
   info "Start later with:"
-  info "  docker compose --env-file $ENV_FILE -f $COMPOSE_FILE up -d --build"
+  info "  ${COMPOSE_PROFILES_PREFIX}docker compose --env-file $ENV_FILE -f $COMPOSE_FILE up -d --build"
+  [ "$STORAGE" = "aws" ] && print_s3_setup
   exit 0
 fi
 
@@ -256,7 +357,8 @@ check() { # check NAME URL EXPECTED_CODE
 }
 
 rc=0
-check "MinIO " "http://${HOST}:9000/minio/health/live" "200" || rc=1
+# MinIO only runs for the bundled backend.
+[ "$STORAGE" = "minio" ] && { check "MinIO " "http://${HOST}:9000/minio/health/live" "200" || rc=1; }
 check "Client" "http://${HOST}:8080/"                  "200" || rc=1
 # server's root is unrouted; a real API route confirms migrations + DB are up
 check "Server" "http://${HOST}:3000/api/tapestries"    "200" || rc=1
@@ -266,7 +368,9 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps
 
 if [ "$rc" -eq 0 ]; then
   ok "\nTapestry is up. Open ${VIEWER_URL:-http://${HOST}:8080}"
-  info "MinIO console: http://${HOST}:9001"
+  [ "$STORAGE" = "minio" ] && info "MinIO console: http://${HOST}:9001"
+  [ "$STORAGE" = "aws" ] && print_s3_setup
+  exit 0
 else
   err "\nSome services did not come up. Inspect logs with:"
   info "  docker compose --env-file $ENV_FILE -f $COMPOSE_FILE logs <service>"
