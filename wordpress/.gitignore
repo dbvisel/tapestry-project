@@ -1,0 +1,4 @@
+# Build artifacts produced by tapestries-block/package-plugin.sh and build-viewer.sh.
+# Both are fully reproducible from source, so they are not tracked.
+dist/
+tapestries-block/viewer/

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "tapestries/viewer",
+  "version": "0.1.0",
+  "title": "Tapestry",
+  "category": "embed",
+  "icon": "images-alt2",
+  "description": "Embed an exported Tapestry ZIP as an interactive, zoomable viewer.",
+  "keywords": ["tapestry", "tapestries", "zip", "viewer"],
+  "textdomain": "tapestries",
+  "attributes": {
+    "zipUrl": { "type": "string", "default": "" },
+    "zipId": { "type": "number" },
+    "title": { "type": "string", "default": "" },
+    "height": { "type": "number", "default": 600 }
+  },
+  "supports": {
+    "html": false,
+    "align": ["wide", "full"]
+  },
+  "style": "file:./style.css"
+}

@@ -9,7 +9,9 @@ createRoot(document.getElementById('root')!).render(
     <GoogleFonts />
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<App />} />
+        {/* Match any path so the viewer also works when served from a sub-directory
+            (e.g. embedded in a WordPress plugin at /wp-content/plugins/.../viewer/). */}
+        <Route path="*" element={<App />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
