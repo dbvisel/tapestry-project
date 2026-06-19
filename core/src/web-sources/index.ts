@@ -2,6 +2,7 @@ import { KNOWN_WEBPAGE_TYPES, WebpageItem, WebpageType } from '../data-format/sc
 import { VimeoSourceParser, YoutubeSourceParser } from './video.js'
 import { WaybackSourceParser } from './wayback.js'
 import { IAMediaSourceParser } from './ia.js'
+import { SoundcloudSourceParser } from './soundcloud.js'
 
 export interface BaseWebSourceParams {
   source: string
@@ -48,6 +49,7 @@ export const WEB_SOURCE_PARSERS = {
   iaWayback: new WaybackSourceParser(),
   iaAudio: new IAMediaSourceParser('audio', 'iaAudio'),
   iaVideo: new IAMediaSourceParser('movies', 'iaVideo'),
+  soundcloud: new SoundcloudSourceParser(),
   unknown: new UnknownWebSourceParser(),
 } satisfies ParsersMap
 

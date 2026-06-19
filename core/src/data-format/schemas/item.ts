@@ -1,7 +1,14 @@
 import z from 'zod/v4'
 import { HexColorSchema, IdentifiableSchema, PointSchema, SizeSchema } from './common.js'
 
-export const KNOWN_WEBPAGE_TYPES = ['youtube', 'vimeo', 'iaWayback', 'iaAudio', 'iaVideo'] as const
+export const KNOWN_WEBPAGE_TYPES = [
+  'youtube',
+  'vimeo',
+  'iaWayback',
+  'iaAudio',
+  'iaVideo',
+  'soundcloud',
+] as const
 export type WebpageType = (typeof KNOWN_WEBPAGE_TYPES)[number]
 
 export const ACTION_BUTTON_TYPE = ['internalLink', 'externalLink'] as const

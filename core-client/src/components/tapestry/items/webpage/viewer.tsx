@@ -26,6 +26,9 @@ export const ALLOWED_ORIGINS = [
   'https://archive.org',
   'https://youtube.com',
   'https://player.vimeo.com',
+  // The SoundCloud widget player loads from this origin; it needs `allow-same-origin` in the sandbox
+  // (granted to allowed origins below) to access its own storage and play tracks.
+  'https://w.soundcloud.com',
 ]
 
 function sameOriginAllowed(url: string) {

@@ -2,7 +2,7 @@ import { isHTTPURL } from 'tapestry-core/src/utils'
 import { MediaItemSource } from '../lib/media'
 import { createMediaItem, getMediaSourceText } from '../model/data/utils'
 import { ItemCreateDto } from 'tapestry-shared/src/data-transfer/resources/dtos/item'
-import { findWebSourceParser } from 'tapestry-core/src/web-sources'
+import { findWebSourceParser, WEB_SOURCE_PARSERS } from 'tapestry-core/src/web-sources'
 import {
   iaItemEmbedURL,
   IAMediaType,
@@ -104,6 +104,25 @@ const webpageItemFactory: ItemFactory = async (source, _mediaType, tapestryId) =
   if (typeof source !== 'string' || !isHTTPURL(source)) return null
 
   const parser = await findWebSourceParser(source)
+  const item = await createMediaItem('webpage', parser.construct(parser.parse(source)), tapestryId)
+  item.webpageType = parser.webpageType
+  item.skipSourceResolution = true
+
+  return { items: [item], iaImports: [] }
+}
+
+/**
+ * SoundCloud pages can't be framed directly, so they must be turned into the SoundCloud widget embed via
+ * the soundcloud web-source parser. This needs its own factory ahead of htmlFileItemFactory because
+ * soundcloud.com serves an exact `text/html` content type, which htmlFileItemFactory would otherwise
+ * intercept into a (broken) generic webpage before the parser-aware webpageItemFactory is reached.
+ */
+const soundcloudItemFactory: ItemFactory = async (source, _mediaType, tapestryId) => {
+  if (typeof source !== 'string' || !isHTTPURL(source)) return null
+
+  const parser = WEB_SOURCE_PARSERS.soundcloud
+  if (!(await parser.matches(source))) return null
+
   const item = await createMediaItem('webpage', parser.construct(parser.parse(source)), tapestryId)
   item.webpageType = parser.webpageType
   item.skipSourceResolution = true
@@ -226,6 +245,7 @@ export const ITEM_FACTORIES: ItemFactory[] = [
   createSimpleMediaItemFactory('audio', (_, mediaType) => !!mediaType?.startsWith('audio/')),
   linkFileFactory,
   textItemFactory,
+  soundcloudItemFactory,
   htmlFileItemFactory,
   iiifItemFactory,
   iaCollectionFactory,
