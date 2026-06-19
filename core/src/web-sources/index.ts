@@ -3,6 +3,7 @@ import { VimeoSourceParser, YoutubeSourceParser } from './video.js'
 import { WaybackSourceParser } from './wayback.js'
 import { IAMediaSourceParser } from './ia.js'
 import { SoundcloudSourceParser } from './soundcloud.js'
+import { SpotifySourceParser } from './spotify.js'
 
 export interface BaseWebSourceParams {
   source: string
@@ -50,6 +51,7 @@ export const WEB_SOURCE_PARSERS = {
   iaAudio: new IAMediaSourceParser('audio', 'iaAudio'),
   iaVideo: new IAMediaSourceParser('movies', 'iaVideo'),
   soundcloud: new SoundcloudSourceParser(),
+  spotify: new SpotifySourceParser(),
   unknown: new UnknownWebSourceParser(),
 } satisfies ParsersMap
 

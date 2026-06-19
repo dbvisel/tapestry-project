@@ -29,6 +29,8 @@ export const ALLOWED_ORIGINS = [
   // The SoundCloud widget player loads from this origin; it needs `allow-same-origin` in the sandbox
   // (granted to allowed origins below) to access its own storage and play tracks.
   'https://w.soundcloud.com',
+  // The Spotify embed player loads from open.spotify.com and likewise needs same-origin in the sandbox.
+  'https://open.spotify.com',
 ]
 
 function sameOriginAllowed(url: string) {
@@ -123,7 +125,7 @@ export function WebpageItemViewer({
         onLoad={() => setWebpageLoaded(true)}
         key={`reload-${webpageReloadIndex}`}
         allowFullScreen
-        allow="autoplay"
+        allow="autoplay; encrypted-media; clipboard-write; picture-in-picture"
         onPlaybackStateChange={(isPlaying) => dispatch(setItemIsPlaying(id, isPlaying))}
       />
     </WebpageLoader>

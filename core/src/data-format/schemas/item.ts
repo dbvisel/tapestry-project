@@ -8,6 +8,7 @@ export const KNOWN_WEBPAGE_TYPES = [
   'iaAudio',
   'iaVideo',
   'soundcloud',
+  'spotify',
 ] as const
 export type WebpageType = (typeof KNOWN_WEBPAGE_TYPES)[number]
 

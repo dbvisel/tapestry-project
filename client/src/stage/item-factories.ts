@@ -2,7 +2,11 @@ import { isHTTPURL } from 'tapestry-core/src/utils'
 import { MediaItemSource } from '../lib/media'
 import { createMediaItem, getMediaSourceText } from '../model/data/utils'
 import { ItemCreateDto } from 'tapestry-shared/src/data-transfer/resources/dtos/item'
-import { findWebSourceParser, WEB_SOURCE_PARSERS } from 'tapestry-core/src/web-sources'
+import {
+  findWebSourceParser,
+  WEB_SOURCE_PARSERS,
+  WebSourceParser,
+} from 'tapestry-core/src/web-sources'
 import {
   iaItemEmbedURL,
   IAMediaType,
@@ -112,23 +116,30 @@ const webpageItemFactory: ItemFactory = async (source, _mediaType, tapestryId) =
 }
 
 /**
- * SoundCloud pages can't be framed directly, so they must be turned into the SoundCloud widget embed via
- * the soundcloud web-source parser. This needs its own factory ahead of htmlFileItemFactory because
+ * Some sites (SoundCloud, Spotify) can't be framed directly and must be rewritten to a dedicated embed/
+ * widget URL by their web-source parser. These need their own factories ahead of htmlFileItemFactory: e.g.
  * soundcloud.com serves an exact `text/html` content type, which htmlFileItemFactory would otherwise
  * intercept into a (broken) generic webpage before the parser-aware webpageItemFactory is reached.
  */
-const soundcloudItemFactory: ItemFactory = async (source, _mediaType, tapestryId) => {
-  if (typeof source !== 'string' || !isHTTPURL(source)) return null
+function createWebSourceEmbedFactory(parser: WebSourceParser<WebpageType>): ItemFactory {
+  return async (source, _mediaType, tapestryId) => {
+    if (typeof source !== 'string' || !isHTTPURL(source)) return null
+    if (!(await parser.matches(source))) return null
 
-  const parser = WEB_SOURCE_PARSERS.soundcloud
-  if (!(await parser.matches(source))) return null
+    const item = await createMediaItem(
+      'webpage',
+      parser.construct(parser.parse(source)),
+      tapestryId,
+    )
+    item.webpageType = parser.webpageType
+    item.skipSourceResolution = true
 
-  const item = await createMediaItem('webpage', parser.construct(parser.parse(source)), tapestryId)
-  item.webpageType = parser.webpageType
-  item.skipSourceResolution = true
-
-  return { items: [item], iaImports: [] }
+    return { items: [item], iaImports: [] }
+  }
 }
+
+const soundcloudItemFactory = createWebSourceEmbedFactory(WEB_SOURCE_PARSERS.soundcloud)
+const spotifyItemFactory = createWebSourceEmbedFactory(WEB_SOURCE_PARSERS.spotify)
 
 const IA_MEDIA_TYPE_MAP: Partial<Record<IAMediaType, WebpageType>> = {
   audio: 'iaAudio',
@@ -246,6 +257,7 @@ export const ITEM_FACTORIES: ItemFactory[] = [
   linkFileFactory,
   textItemFactory,
   soundcloudItemFactory,
+  spotifyItemFactory,
   htmlFileItemFactory,
   iiifItemFactory,
   iaCollectionFactory,
