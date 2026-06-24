@@ -173,14 +173,26 @@ HOST="${HOST:-localhost}"
 hdr "Authentication"
 info "'ia' = Internet Archive username/password login (no extra config)."
 info "'google' = Sign in with Google (needs an OAuth client ID)."
+info "'orcid' = Sign in with ORCID (needs an OAuth client ID and secret)."
 while :; do
-  ask AUTH_PROVIDER "Auth provider (ia/google)" "$(get_env AUTH_PROVIDER "$SOURCE")"
+  ask AUTH_PROVIDER "Auth provider (ia/google/orcid)" "$(get_env AUTH_PROVIDER "$SOURCE")"
   AUTH_PROVIDER="${AUTH_PROVIDER:-ia}"
-  case "$AUTH_PROVIDER" in ia|google) break ;; *) warn "Enter 'ia' or 'google'." ;; esac
+  case "$AUTH_PROVIDER" in ia|google|orcid) break ;; *) warn "Enter 'ia', 'google' or 'orcid'." ;; esac
 done
 GOOGLE_CLIENT_ID="$(get_env GOOGLE_CLIENT_ID "$SOURCE")"
 if [ "$AUTH_PROVIDER" = "google" ]; then
   ask GOOGLE_CLIENT_ID "Google OAuth client ID" "$GOOGLE_CLIENT_ID"
+fi
+ORCID_CLIENT_ID="$(get_env ORCID_CLIENT_ID "$SOURCE")"
+ORCID_CLIENT_SECRET="$(get_env ORCID_CLIENT_SECRET "$SOURCE")"
+ORCID_BASE_URL="$(get_env ORCID_BASE_URL "$SOURCE")"
+ORCID_BASE_URL="${ORCID_BASE_URL:-https://orcid.org}"
+ORCID_REDIRECT_URI="$(get_env ORCID_REDIRECT_URI "$SOURCE")"
+if [ "$AUTH_PROVIDER" = "orcid" ]; then
+  ask ORCID_CLIENT_ID     "ORCID OAuth client ID"     "$ORCID_CLIENT_ID"
+  ask ORCID_CLIENT_SECRET "ORCID OAuth client secret" "$ORCID_CLIENT_SECRET"
+  ask ORCID_BASE_URL      "ORCID base URL (https://orcid.org or https://sandbox.orcid.org)" "$ORCID_BASE_URL"
+  ask ORCID_REDIRECT_URI  "ORCID redirect URI (blank = app origin)" "$ORCID_REDIRECT_URI"
 fi
 
 hdr "Internet Archive shared sessions (optional)"
@@ -283,6 +295,10 @@ set_env VIEWER_URL            "$VIEWER_URL"
 set_env EXTERNAL_SERVER_URL   "$EXTERNAL_SERVER_URL"
 set_env AUTH_PROVIDER         "$AUTH_PROVIDER"
 set_env GOOGLE_CLIENT_ID      "$GOOGLE_CLIENT_ID"
+set_env ORCID_CLIENT_ID       "$ORCID_CLIENT_ID"
+set_env ORCID_CLIENT_SECRET   "$ORCID_CLIENT_SECRET"
+set_env ORCID_BASE_URL        "$ORCID_BASE_URL"
+set_env ORCID_REDIRECT_URI    "$ORCID_REDIRECT_URI"
 set_env IA_ACCOUNT_ID         "$IA_ACCOUNT_ID"
 set_env IA_SECRET             "$IA_SECRET"
 set_env BUG_REPORT_FORM_URL   "$BUG_REPORT_FORM_URL"
