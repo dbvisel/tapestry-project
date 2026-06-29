@@ -173,14 +173,26 @@ HOST="${HOST:-localhost}"
 hdr "Authentication"
 info "'ia' = Internet Archive username/password login (no extra config)."
 info "'google' = Sign in with Google (needs an OAuth client ID)."
+info "'mediawiki' = Sign in with MediaWiki/Wikimedia (needs an OAuth 2.0 client ID and secret)."
 while :; do
-  ask AUTH_PROVIDER "Auth provider (ia/google)" "$(get_env AUTH_PROVIDER "$SOURCE")"
+  ask AUTH_PROVIDER "Auth provider (ia/google/mediawiki)" "$(get_env AUTH_PROVIDER "$SOURCE")"
   AUTH_PROVIDER="${AUTH_PROVIDER:-ia}"
-  case "$AUTH_PROVIDER" in ia|google) break ;; *) warn "Enter 'ia' or 'google'." ;; esac
+  case "$AUTH_PROVIDER" in ia|google|mediawiki) break ;; *) warn "Enter 'ia', 'google' or 'mediawiki'." ;; esac
 done
 GOOGLE_CLIENT_ID="$(get_env GOOGLE_CLIENT_ID "$SOURCE")"
 if [ "$AUTH_PROVIDER" = "google" ]; then
   ask GOOGLE_CLIENT_ID "Google OAuth client ID" "$GOOGLE_CLIENT_ID"
+fi
+MEDIAWIKI_CLIENT_ID="$(get_env MEDIAWIKI_CLIENT_ID "$SOURCE")"
+MEDIAWIKI_CLIENT_SECRET="$(get_env MEDIAWIKI_CLIENT_SECRET "$SOURCE")"
+MEDIAWIKI_BASE_URL="$(get_env MEDIAWIKI_BASE_URL "$SOURCE")"
+MEDIAWIKI_BASE_URL="${MEDIAWIKI_BASE_URL:-https://meta.wikimedia.org/w/rest.php}"
+MEDIAWIKI_REDIRECT_URI="$(get_env MEDIAWIKI_REDIRECT_URI "$SOURCE")"
+if [ "$AUTH_PROVIDER" = "mediawiki" ]; then
+  ask MEDIAWIKI_CLIENT_ID     "MediaWiki OAuth client ID"     "$MEDIAWIKI_CLIENT_ID"
+  ask MEDIAWIKI_CLIENT_SECRET "MediaWiki OAuth client secret" "$MEDIAWIKI_CLIENT_SECRET"
+  ask MEDIAWIKI_BASE_URL      "MediaWiki REST endpoint (e.g. https://meta.wikimedia.org/w/rest.php)" "$MEDIAWIKI_BASE_URL"
+  ask MEDIAWIKI_REDIRECT_URI  "MediaWiki redirect URI (blank = app origin)" "$MEDIAWIKI_REDIRECT_URI"
 fi
 
 hdr "Internet Archive shared sessions (optional)"
@@ -283,6 +295,10 @@ set_env VIEWER_URL            "$VIEWER_URL"
 set_env EXTERNAL_SERVER_URL   "$EXTERNAL_SERVER_URL"
 set_env AUTH_PROVIDER         "$AUTH_PROVIDER"
 set_env GOOGLE_CLIENT_ID      "$GOOGLE_CLIENT_ID"
+set_env MEDIAWIKI_CLIENT_ID     "$MEDIAWIKI_CLIENT_ID"
+set_env MEDIAWIKI_CLIENT_SECRET "$MEDIAWIKI_CLIENT_SECRET"
+set_env MEDIAWIKI_BASE_URL      "$MEDIAWIKI_BASE_URL"
+set_env MEDIAWIKI_REDIRECT_URI  "$MEDIAWIKI_REDIRECT_URI"
 set_env IA_ACCOUNT_ID         "$IA_ACCOUNT_ID"
 set_env IA_SECRET             "$IA_SECRET"
 set_env BUG_REPORT_FORM_URL   "$BUG_REPORT_FORM_URL"
