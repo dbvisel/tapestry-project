@@ -8,8 +8,10 @@ import {
   WebSourceParser,
 } from 'tapestry-core/src/web-sources'
 import {
+  iaAdvancedSearch,
   iaItemEmbedURL,
   IAMediaType,
+  parseInternetArchiveSearchURL,
   parseInternetArchiveURL,
   IAItem,
   getIAItemMetadata,
@@ -18,10 +20,26 @@ import {
   getIAIIIFManifestURL,
 } from 'tapestry-core/src/internet-archive'
 import { fetchIIIFFirstCanvas } from 'tapestry-core/src/iiif'
+import {
+  CommonsFileInfo,
+  CommonsMediaType,
+  fetchCommonsCategoryFileCount,
+  fetchCommonsFileInfo,
+  parseCommonsCategoryURL,
+  parseCommonsFileURL,
+} from 'tapestry-core/src/wikimedia-commons'
+import {
+  fetchOpenverseImage,
+  fetchOpenverseTagCollection,
+  OpenverseImage,
+  parseOpenverseImageURL,
+  parseOpenverseTagCollectionURL,
+} from 'tapestry-core/src/openverse'
 import { MediaItemType, WebpageType } from 'tapestry-core/src/data-format/schemas/item'
 import { getUserListItems } from '../lib/internet-archive'
 import { parseMediaSource, parseStringTransferData } from './data-transfer-handler'
 import { fileTypeFromBuffer } from 'file-type'
+import { compact } from 'lodash-es'
 import { parse } from 'ini'
 import { IAImport } from '../pages/tapestry/view-model'
 
@@ -116,10 +134,13 @@ const webpageItemFactory: ItemFactory = async (source, _mediaType, tapestryId) =
 }
 
 /**
- * Some sites (SoundCloud, Spotify) can't be framed directly and must be rewritten to a dedicated embed/
- * widget URL by their web-source parser. These need their own factories ahead of htmlFileItemFactory: e.g.
- * soundcloud.com serves an exact `text/html` content type, which htmlFileItemFactory would otherwise
- * intercept into a (broken) generic webpage before the parser-aware webpageItemFactory is reached.
+ * Some sites need their `source` resolved by a dedicated web-source parser before the generic webpage/iframe
+ * path can be considered - either because the page can't be framed directly and must be rewritten to a
+ * dedicated embed/widget URL (SoundCloud, Spotify), or because the item is rendered from fetched content
+ * instead of an iframe (Wikipedia). These need their own factories ahead of htmlFileItemFactory: e.g.
+ * soundcloud.com and wikipedia.org serve an exact `text/html` content type, which htmlFileItemFactory would
+ * otherwise intercept into a (broken or suboptimal) generic webpage before the parser-aware
+ * webpageItemFactory is reached.
  */
 function createWebSourceEmbedFactory(parser: WebSourceParser<WebpageType>): ItemFactory {
   return async (source, _mediaType, tapestryId) => {
@@ -140,6 +161,123 @@ function createWebSourceEmbedFactory(parser: WebSourceParser<WebpageType>): Item
 
 const soundcloudItemFactory = createWebSourceEmbedFactory(WEB_SOURCE_PARSERS.soundcloud)
 const spotifyItemFactory = createWebSourceEmbedFactory(WEB_SOURCE_PARSERS.spotify)
+const wikipediaItemFactory = createWebSourceEmbedFactory(WEB_SOURCE_PARSERS.wikipedia)
+const sketchfabItemFactory = createWebSourceEmbedFactory(WEB_SOURCE_PARSERS.sketchfab)
+
+const COMMONS_MEDIA_ITEM_TYPES: Partial<Record<CommonsMediaType, 'image' | 'video' | 'model3d'>> = {
+  BITMAP: 'image',
+  DRAWING: 'image',
+  VIDEO: 'video',
+  '3D': 'model3d',
+}
+
+/**
+ * Resolves a Commons file to the item type it should import as. Most cases are a straight lookup by
+ * `mediatype`, but Commons' "OFFICE" mediatype covers PDFs as well as other document formats (DjVu, Word,
+ * ...) we have no viewer for, so that one case is narrowed further by MIME type.
+ */
+function commonsItemType(file: CommonsFileInfo): MediaItemType | null {
+  if (file.mediatype === 'OFFICE') {
+    return file.mime === 'application/pdf' ? 'pdf' : null
+  }
+  return COMMONS_MEDIA_ITEM_TYPES[file.mediatype] ?? null
+}
+
+/**
+ * A Wikimedia Commons file page (`commons.wikimedia.org/wiki/File:...`) is a wiki page describing a media
+ * file, not the file itself - it needs its own factory (ahead of htmlFileItemFactory, which would otherwise
+ * intercept its `text/html` content type into a plain webpage) to resolve it to the underlying file's direct
+ * URL and import it as a regular image, video, 3D model, or PDF item. Only those are handled for now;
+ * anything else (audio, non-PDF documents, ...) falls through to the remaining factories, which will import
+ * the file page itself.
+ */
+const commonsFileItemFactory: ItemFactory = async (source, _mediaType, tapestryId) => {
+  if (typeof source !== 'string' || !isHTTPURL(source)) return null
+
+  const parsed = parseCommonsFileURL(source)
+  if (!parsed) return null
+
+  const fileInfo = await fetchCommonsFileInfo(parsed.filename)
+  const itemType = fileInfo && commonsItemType(fileInfo)
+  if (!itemType) return null
+
+  return { items: [await createMediaItem(itemType, fileInfo.url, tapestryId)], iaImports: [] }
+}
+
+/**
+ * Creates image/video/model3d/PDF items from a set of already-resolved Commons files (see
+ * `HandleIAImportDialog`'s picker, whose selections are re-resolved via `fetchCommonsFileInfo` at confirm
+ * time). Files whose media type isn't handled (audio, non-PDF documents, ...) are silently skipped,
+ * mirroring `commonsFileItemFactory`.
+ */
+export async function createCommonsMediaItems(tapestryId: string, files: CommonsFileInfo[]) {
+  const items = await Promise.all(
+    files.map(async (file) => {
+      const itemType = commonsItemType(file)
+      return itemType ? await createMediaItem(itemType, file.url, tapestryId) : null
+    }),
+  )
+  return compact(items)
+}
+
+/**
+ * A Wikimedia Commons category page (`commons.wikimedia.org/wiki/Category:...`) can hold many files, so
+ * (like an Internet Archive collection) it's imported via the picker dialog rather than dumping every
+ * member onto the canvas at once. Just the (cheap) file count is needed to show the picker's header - the
+ * full member listing (an expensive, potentially multi-request fetch) is left to the picker itself, and
+ * only once the user actually opens it.
+ */
+const commonsCategoryFactory: ItemFactory = async (source, _mediaType, _tapestryId) => {
+  if (typeof source !== 'string' || !isHTTPURL(source)) return null
+
+  const parsed = parseCommonsCategoryURL(source)
+  if (!parsed) return null
+
+  const total = await fetchCommonsCategoryFileCount(parsed.category)
+  if (total === undefined) return null
+
+  return {
+    items: [],
+    iaImports: [{ type: 'CommonsCategory', category: parsed.category, total }],
+  }
+}
+
+/** Creates image items from a set of already-resolved Openverse images (mirrors `createCommonsMediaItems`). */
+export async function createOpenverseMediaItems(tapestryId: string, images: OpenverseImage[]) {
+  return Promise.all(images.map((image) => createMediaItem('image', image.url, tapestryId)))
+}
+
+const openverseImageItemFactory: ItemFactory = async (source, _mediaType, tapestryId) => {
+  if (typeof source !== 'string' || !isHTTPURL(source)) return null
+
+  const parsed = parseOpenverseImageURL(source)
+  if (!parsed) return null
+
+  const image = await fetchOpenverseImage(parsed.id)
+  if (!image) return null
+
+  return { items: [await createMediaItem('image', image.url, tapestryId)], iaImports: [] }
+}
+
+/**
+ * An Openverse tag-collection page (`openverse.org/image/collection?tag=...`) can hold many images, so -
+ * like a Commons category - it's imported via the picker dialog rather than dumping every match onto the
+ * canvas at once.
+ */
+const openverseCollectionFactory: ItemFactory = async (source, _mediaType, _tapestryId) => {
+  if (typeof source !== 'string' || !isHTTPURL(source)) return null
+
+  const parsed = parseOpenverseTagCollectionURL(source)
+  if (!parsed) return null
+
+  const result = await fetchOpenverseTagCollection(parsed.tag, { page: 1, pageSize: 1 })
+  if (!result) return null
+
+  return {
+    items: [],
+    iaImports: [{ type: 'OpenverseCollection', tag: parsed.tag, total: result.total }],
+  }
+}
 
 const IA_MEDIA_TYPE_MAP: Partial<Record<IAMediaType, WebpageType>> = {
   audio: 'iaAudio',
@@ -225,6 +363,25 @@ const iaCollectionFactory: ItemFactory = async (source, _, tapestryId) => {
   }
 }
 
+const iaSearchFactory: ItemFactory = async (source, _mediaType, _tapestryId) => {
+  if (typeof source !== 'string' || !isHTTPURL(source)) return null
+
+  const parsed = parseInternetArchiveSearchURL(source)
+  if (!parsed) return null
+
+  const result = await iaAdvancedSearch({
+    q: `(${parsed.query}) AND NOT mediatype:collection`,
+    pageSize: 1,
+    page: 1,
+  })
+  if (!result) return null
+
+  return {
+    items: [],
+    iaImports: [{ type: 'IASearch', query: parsed.query, total: result.response.numFound }],
+  }
+}
+
 const linkFileFactory: ItemFactory = async (source, _, tapestryId) => {
   if (!(source instanceof File)) {
     return null
@@ -254,12 +411,29 @@ export const ITEM_FACTORIES: ItemFactory[] = [
   createSimpleMediaItemFactory('pdf', (_, mediaType) => mediaType === 'application/pdf'),
   createSimpleMediaItemFactory('video', (_, mediaType) => !!mediaType?.startsWith('video/')),
   createSimpleMediaItemFactory('audio', (_, mediaType) => !!mediaType?.startsWith('audio/')),
+  // STL has no single standard MIME type ("model/stl" and the older "application/sla" are both common,
+  // and browsers frequently report neither at all for a locally-picked file), so the filename extension is
+  // checked as a fallback.
+  createSimpleMediaItemFactory(
+    'model3d',
+    (source, mediaType) =>
+      mediaType === 'model/stl' ||
+      mediaType === 'application/sla' ||
+      (source instanceof File && source.name.toLowerCase().endsWith('.stl')),
+  ),
   linkFileFactory,
   textItemFactory,
   soundcloudItemFactory,
   spotifyItemFactory,
+  sketchfabItemFactory,
+  wikipediaItemFactory,
+  commonsFileItemFactory,
+  commonsCategoryFactory,
+  openverseImageItemFactory,
+  openverseCollectionFactory,
   htmlFileItemFactory,
   iiifItemFactory,
+  iaSearchFactory,
   iaCollectionFactory,
   webpageItemFactory,
 ]

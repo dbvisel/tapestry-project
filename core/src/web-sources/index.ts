@@ -4,6 +4,8 @@ import { WaybackSourceParser } from './wayback.js'
 import { IAMediaSourceParser } from './ia.js'
 import { SoundcloudSourceParser } from './soundcloud.js'
 import { SpotifySourceParser } from './spotify.js'
+import { WikipediaSourceParser } from './wikipedia.js'
+import { SketchfabSourceParser } from './sketchfab.js'
 
 export interface BaseWebSourceParams {
   source: string
@@ -52,6 +54,8 @@ export const WEB_SOURCE_PARSERS = {
   iaVideo: new IAMediaSourceParser('movies', 'iaVideo'),
   soundcloud: new SoundcloudSourceParser(),
   spotify: new SpotifySourceParser(),
+  wikipedia: new WikipediaSourceParser(),
+  sketchfab: new SketchfabSourceParser(),
   unknown: new UnknownWebSourceParser(),
 } satisfies ParsersMap
 

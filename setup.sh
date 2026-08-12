@@ -252,6 +252,8 @@ if [ "$STORAGE" = "aws" ]; then
   ask AWS_SECRET_ACCESS_KEY "AWS secret access key" "$(get_env AWS_SECRET_ACCESS_KEY "$SOURCE")"
   # Empty endpoint => the SDK talks to real AWS; virtual-hosted style.
   AWS_ENDPOINT_URL=""
+  # Real AWS is reachable the same way from the server/worker containers as from the browser.
+  AWS_INTERNAL_ENDPOINT_URL=""
   AWS_S3_FORCE_PATH_STYLE="false"
   COMPOSE_PROFILES_PREFIX=""
   export COMPOSE_PROFILES=""
@@ -262,6 +264,10 @@ else
   AWS_S3_BUCKET_NAME="$(get_env AWS_S3_BUCKET_NAME "$SOURCE")"; AWS_S3_BUCKET_NAME="${AWS_S3_BUCKET_NAME:-tabucket}"
   AWS_ACCESS_KEY_ID="$(get_env AWS_ACCESS_KEY_ID "$SOURCE")";   AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-tapestries}"
   AWS_ENDPOINT_URL="$(get_env AWS_ENDPOINT_URL "$SOURCE")";     AWS_ENDPOINT_URL="${AWS_ENDPOINT_URL:-http://localhost:9000}"
+  # The browser reaches MinIO via the published port on $HOST, but the server/worker
+  # containers can't resolve $HOST that way — they must reach it as the 'minio' service
+  # on the Compose network instead.
+  AWS_INTERNAL_ENDPOINT_URL="http://minio:9000"
   AWS_S3_FORCE_PATH_STYLE="true"
   [ "$RERUN" -eq 1 ] && AWS_SECRET_ACCESS_KEY="$(get_env AWS_SECRET_ACCESS_KEY "$SOURCE")"
   [ -n "${AWS_SECRET_ACCESS_KEY:-}" ] || { AWS_SECRET_ACCESS_KEY="$(gen_secret)"; SECRETS_NOTE="generated"; }
@@ -292,7 +298,8 @@ set_env SECRET_KEY               "$SECRET_KEY"
 set_env DB_PASS                  "$DB_PASS"
 set_env MINIO_CONSOLE_SECRET_KEY "$MINIO_CONSOLE_SECRET_KEY"
 # storage (MinIO or AWS S3) — values differ per backend, see the section above
-set_env AWS_ENDPOINT_URL         "$AWS_ENDPOINT_URL"
+set_env AWS_ENDPOINT_URL          "$AWS_ENDPOINT_URL"
+set_env AWS_INTERNAL_ENDPOINT_URL "$AWS_INTERNAL_ENDPOINT_URL"
 set_env AWS_S3_FORCE_PATH_STYLE  "$AWS_S3_FORCE_PATH_STYLE"
 set_env AWS_REGION               "$AWS_REGION"
 set_env AWS_S3_BUCKET_NAME       "$AWS_S3_BUCKET_NAME"

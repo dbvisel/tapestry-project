@@ -5,16 +5,25 @@ import { useAsyncAction } from 'tapestry-core-client/src/components/lib/hooks/us
 import { SimpleModal } from 'tapestry-core-client/src/components/lib/modal/index'
 import { IAMediaType } from 'tapestry-core/src/internet-archive'
 import { toggleElement } from 'tapestry-core/src/lib/array'
+import { fetchCommonsFileInfo } from 'tapestry-core/src/wikimedia-commons'
+import { fetchOpenverseImage } from 'tapestry-core/src/openverse'
 import { useDispatch, useTapestryData } from '../../pages/tapestry/tapestry-providers'
 import { IAImport } from '../../pages/tapestry/view-model/index'
 import { addAndPositionItems } from '../../pages/tapestry/view-model/store-commands/items'
 import { setIAImport } from '../../pages/tapestry/view-model/store-commands/tapestry'
 import { createItemViewModel } from '../../pages/tapestry/view-model/utils'
 import { Breakpoint, useResponsive } from '../../providers/responsive-provider'
-import { createIAMediaItems } from '../../stage/item-factories'
+import {
+  createCommonsMediaItems,
+  createIAMediaItems,
+  createOpenverseMediaItems,
+} from '../../stage/item-factories'
 import { ImportDetails } from './import-details/index'
 import { requestCollectionItems } from './import-items-list/collection-list/index'
+import { requestCategoryMembers } from './import-items-list/commons-category-list/index'
 import { ImportItemsList } from './import-items-list/index'
+import { requestOpenverseCollection } from './import-items-list/openverse-collection-list/index'
+import { requestIASearchResults } from './import-items-list/ia-search-list/index'
 import styles from './styles.module.css'
 
 export interface ImportItem {
@@ -25,18 +34,43 @@ export interface ImportItem {
 const IA_IMPORT_TITLE_MAP: Record<IAImport['type'], string> = {
   IACollection: 'Choose collection items',
   IAPlaylist: 'Choose playlist items',
+  CommonsCategory: 'Choose files to import',
+  OpenverseCollection: 'Choose images to import',
+  IASearch: 'Choose items to import',
 }
 
 const IA_IMPORT_CLASS_MAP: Record<IAImport['type'], string> = {
   IACollection: styles.collectionList,
   IAPlaylist: styles.playlist,
+  CommonsCategory: styles.collectionList,
+  OpenverseCollection: styles.collectionList,
+  IASearch: styles.collectionList,
 }
 
-async function createNewItems(
-  { type, id, metadata: { mediatype: mediaType } }: IAImport,
-  items: ImportItem[],
-  tapestryId: string,
-) {
+async function createNewItems(iaImport: IAImport, items: ImportItem[], tapestryId: string) {
+  if (iaImport.type === 'CommonsCategory') {
+    const fileInfos = compact(await Promise.all(items.map(({ id }) => fetchCommonsFileInfo(id))))
+    return createCommonsMediaItems(tapestryId, fileInfos)
+  }
+
+  if (iaImport.type === 'OpenverseCollection') {
+    const images = compact(await Promise.all(items.map(({ id }) => fetchOpenverseImage(id))))
+    return createOpenverseMediaItems(tapestryId, images)
+  }
+
+  if (iaImport.type === 'IASearch') {
+    return createIAMediaItems(
+      tapestryId,
+      compact(items.map(({ id, mediaType }) => mediaType && { id, mediaType })),
+    )
+  }
+
+  const {
+    type,
+    id,
+    metadata: { mediatype: mediaType },
+  } = iaImport
+
   if (type === 'IACollection') {
     return createIAMediaItems(
       tapestryId,
@@ -56,7 +90,7 @@ function getTitle(imports: IAImport[], index: number) {
   return total > 1 ? `(${index + 1} / ${total}) ${title}` : title
 }
 
-export const MAX_SELECTION = 50
+export const MAX_SELECTION = 75
 
 export function HandleIAImportDialog() {
   const { iaImports, id: tapestryId } = useTapestryData(['iaImports', 'id'])
@@ -78,6 +112,32 @@ export function HandleIAImportDialog() {
 
     if (iaImport.type === 'IAPlaylist') {
       setSelectedItems(iaImport.entries.slice(0, MAX_SELECTION).map((e) => ({ id: e.filename })))
+    } else if (iaImport.type === 'CommonsCategory') {
+      setSelectedItems(
+        (await requestCategoryMembers(iaImport.category, 0, MAX_SELECTION, signal)).data.map(
+          (m) => ({ id: m.id }),
+        ),
+      )
+    } else if (iaImport.type === 'OpenverseCollection') {
+      // Selecting all doesn't have anywhere of its own to show a failure (e.g. Openverse rate-limiting
+      // anonymous requests) - the list below is fetching the same data independently and will surface it
+      // via its own error state, so this just leaves the selection unchanged rather than throwing.
+      try {
+        setSelectedItems(
+          (await requestOpenverseCollection(iaImport.tag, 0, MAX_SELECTION, signal)).data.map(
+            (i) => ({ id: i.id }),
+          ),
+        )
+      } catch (error) {
+        console.warn('Failed to select all Openverse collection items', error)
+      }
+    } else if (iaImport.type === 'IASearch') {
+      setSelectedItems(
+        (await requestIASearchResults(iaImport.query, 0, MAX_SELECTION, signal)).data.map((i) => ({
+          id: i.id,
+          mediaType: i.mediatype,
+        })),
+      )
     } else {
       setSelectedItems(
         (await requestCollectionItems(iaImport.id, 0, MAX_SELECTION, signal)).data.map((i) => ({

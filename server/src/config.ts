@@ -41,6 +41,11 @@ export const config = deepFreeze(
 
       // AWS
       AWS_ENDPOINT_URL: z.string().default(''),
+      // Endpoint the server/worker use for direct S3 calls (uploads, downloads, cleanup).
+      // Falls back to AWS_ENDPOINT_URL when unset. Only needs to differ from it when the
+      // public endpoint (e.g. a docker host's published port) isn't reachable from inside
+      // the server/worker containers themselves, as with the bundled MinIO compose setup.
+      AWS_INTERNAL_ENDPOINT_URL: z.string().default(''),
       AWS_ACCESS_KEY_ID: z.string().nullish(),
       AWS_SECRET_ACCESS_KEY: z.string().nullish(),
       AWS_REGION: z.string(),
@@ -106,6 +111,7 @@ export const config = deepFreeze(
       },
       aws: {
         endpointUrl: input.AWS_ENDPOINT_URL,
+        internalEndpointUrl: input.AWS_INTERNAL_ENDPOINT_URL || input.AWS_ENDPOINT_URL,
         accessKeyId: input.AWS_ACCESS_KEY_ID,
         secretAccessKey: input.AWS_SECRET_ACCESS_KEY,
         region: input.AWS_REGION,

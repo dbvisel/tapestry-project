@@ -14,11 +14,13 @@ import { AudioItem } from '../../components/tapestry-elements/items/audio'
 import { BookItem } from '../../components/tapestry-elements/items/book'
 import { ImageItem } from '../../components/tapestry-elements/items/image'
 import { IiifItem } from '../../components/tapestry-elements/items/iiif'
+import { Model3dItem } from '../../components/tapestry-elements/items/model3d'
 import { PdfItem } from '../../components/tapestry-elements/items/pdf'
 import { TextItem } from '../../components/tapestry-elements/items/text'
 import { VideoItem } from '../../components/tapestry-elements/items/video'
 import { WaybackPageItem } from '../../components/tapestry-elements/items/wayback-page'
 import { WebpageItem } from '../../components/tapestry-elements/items/webpage'
+import { WikipediaItem } from '../../components/tapestry-elements/items/wikipedia-page'
 import { Multiselection } from '../../components/tapestry-elements/multiselection'
 import { Rel } from '../../components/tapestry-elements/rel'
 import { APIError } from '../../errors'
@@ -82,12 +84,14 @@ export function TapestryLoader({ id, mode }: TapestryLoaderProps) {
         BookItem,
         ImageItem,
         IiifItem,
+        Model3dItem,
         PdfItem,
         TextItem,
         VideoItem,
         WebpageItem: {
           default: WebpageItem,
           iaWayback: WaybackPageItem,
+          wikipedia: WikipediaItem,
         },
         Rel,
         Multiselection,

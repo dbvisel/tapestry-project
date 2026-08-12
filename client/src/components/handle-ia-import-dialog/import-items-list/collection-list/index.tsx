@@ -1,10 +1,6 @@
 import clsx from 'clsx'
 import { intlFormat } from 'date-fns'
-import {
-  iaAdvancedSearch,
-  getIAItemThumbnailURL,
-  IAMediaType,
-} from 'tapestry-core/src/internet-archive'
+import { getIAItemThumbnailURL } from 'tapestry-core/src/internet-archive'
 import { ImportItemsListProps } from '..'
 import { useResponsive, Breakpoint } from '../../../../providers/responsive-provider'
 import { Checkbox } from 'tapestry-core-client/src/components/lib/checkbox'
@@ -19,31 +15,7 @@ import { MAX_SELECTION } from '../..'
 import { LazyListLoader } from '../../../lazy-list/lazy-list-loader'
 import { useObservable } from 'tapestry-core-client/src/components/lib/hooks/use-observable'
 import { SelectAll } from '../select-all'
-
-function getCollectionSearchOpts(collectionId: string) {
-  return {
-    q: `collection:${collectionId} AND NOT mediatype:collection`,
-    fields: {
-      identifier: true,
-      mediatype: true,
-      title: true,
-      creator: true,
-      publicdate: true,
-      downloads: true,
-    } as const,
-    sort: ['downloads desc', 'identifier desc'],
-  }
-}
-
-interface IACollectionItem {
-  id: string
-  identifier: string
-  mediatype: IAMediaType
-  title: string
-  creator?: string | undefined
-  publicdate: string
-  downloads: number
-}
+import { IASearchResultItem, requestIAAdvancedSearchPage } from '../ia-advanced-search-pagination'
 
 export async function requestCollectionItems(
   id: string,
@@ -51,43 +23,12 @@ export async function requestCollectionItems(
   limit: number,
   signal: AbortSignal,
 ) {
-  const firstPage = Math.floor(skip / limit) + 1
-
-  const firstPageResult = await iaAdvancedSearch(
-    {
-      ...getCollectionSearchOpts(id),
-      page: firstPage,
-      pageSize: limit,
-    },
+  return requestIAAdvancedSearchPage(
+    `collection:${id} AND NOT mediatype:collection`,
+    skip,
+    limit,
     signal,
   )
-
-  const totalCount = firstPageResult?.response.numFound
-
-  const extra = skip % limit
-  const secondPageResult = extra
-    ? await iaAdvancedSearch(
-        {
-          ...getCollectionSearchOpts(id),
-          page: firstPage + 1,
-          pageSize: limit,
-        },
-        signal,
-      )
-    : null
-
-  const finalResult = [
-    ...(firstPageResult?.response.docs ?? []),
-    ...(secondPageResult?.response.docs ?? []),
-  ]
-    .slice(extra, extra + limit)
-    .map((doc) => ({ ...doc, id: doc.identifier }))
-
-  return {
-    skip,
-    total: totalCount ?? finalResult.length,
-    data: finalResult,
-  }
 }
 
 interface IACollectionListProps extends Omit<ImportItemsListProps, 'iaImport'> {
@@ -119,7 +60,7 @@ export function IACollectionList({
     </>
   )
 
-  const [listLoader, setListLoader] = useState<LazyListLoader<IACollectionItem> | null>(null)
+  const [listLoader, setListLoader] = useState<LazyListLoader<IASearchResultItem> | null>(null)
   const state = useObservable(listLoader)
   const total = state?.total
 

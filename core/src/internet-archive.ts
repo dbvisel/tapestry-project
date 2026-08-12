@@ -149,6 +149,28 @@ export function parseInternetArchiveURL(source: unknown): IAUrlDescriptor | null
   }
 }
 
+/**
+ * Recognizes an Internet Archive search-results page URL (e.g.
+ * `archive.org/search?query=subject%3A%22Gondavalekar%22`) and extracts its raw query string, which can be
+ * passed directly as the `q` param to `iaAdvancedSearch` - it's the same Lucene-like query syntax either
+ * way, whether it names a subject tag, a creator, free text, or any other combination a user might paste
+ * from the IA search UI.
+ */
+export function parseInternetArchiveSearchURL(source: unknown): { query: string } | null {
+  if (typeof source !== 'string' || source === '') return null
+
+  try {
+    const url = new URL(source)
+    if (url.host !== IA_HOST || url.pathname.replace(/\/+$/, '') !== '/search') return null
+
+    const query = url.searchParams.get('query')
+    return query ? { query } : null
+  } catch (error) {
+    console.warn(error)
+    return null
+  }
+}
+
 export function iaItemEmbedURL({ id, pathParams, queryParams }: IAItem) {
   const url = new URL(`https://${IA_HOST}`)
   url.pathname = ['embed', id, ...(pathParams ?? [])].join('/')

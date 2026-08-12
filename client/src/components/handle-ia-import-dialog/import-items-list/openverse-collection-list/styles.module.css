@@ -1,0 +1,47 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  .mobile-select-all {
+    position: sticky;
+    top: 0;
+    padding: 5px var(--padding-x);
+    background-color: var(--theme-background-primary);
+    border-bottom: 1px solid var(--theme-border-subtle);
+    z-index: 1;
+  }
+
+  :global(.lazy-list) {
+    flex-grow: 1;
+
+    :global(.list-items-container) {
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+  }
+
+  .item-image {
+    height: 40px;
+    width: 40px;
+    object-fit: cover;
+  }
+
+  .header {
+    padding: 0 0 5px;
+    border-bottom: 1px solid var(--theme-border-subtle);
+  }
+
+  .loading-indicator {
+    position: absolute;
+    inset: 0;
+  }
+
+  .checkbox {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+}

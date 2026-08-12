@@ -46,6 +46,7 @@ function isMediaItem(i: Item) {
     i.type === 'book' ||
     i.type === 'image' ||
     i.type === 'iiif' ||
+    i.type === 'model3d' ||
     i.type === 'pdf' ||
     i.type === 'video' ||
     i.type === 'webpage'
@@ -102,7 +103,9 @@ export class TapestryImportService {
 
     try {
       zipReader = new ZipReader(
-        new HttpReader(await s3Service.getReadObjectUrl(s3Key!), { forceRangeRequests: true }),
+        new HttpReader(await s3Service.getInternalReadObjectUrl(s3Key!), {
+          forceRangeRequests: true,
+        }),
       )
 
       this.entries = await zipReader.getEntries()

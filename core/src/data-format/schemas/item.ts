@@ -9,6 +9,8 @@ export const KNOWN_WEBPAGE_TYPES = [
   'iaVideo',
   'soundcloud',
   'spotify',
+  'wikipedia',
+  'sketchfab',
 ] as const
 export type WebpageType = (typeof KNOWN_WEBPAGE_TYPES)[number]
 
@@ -144,6 +146,12 @@ export const VideoItemSchema = z.object({
   ...commonItemProps.playbackRange,
 })
 
+export const Model3dItemSchema = z.object({
+  type: z.literal('model3d').describe('The type of this item.'),
+  ...commonItemProps.base,
+  ...commonItemProps.source,
+})
+
 export const WebpageItemSchema = z.object({
   ...commonItemProps.base,
   ...commonItemProps.source,
@@ -155,7 +163,8 @@ export const WebpageItemSchema = z.object({
       'An additional descriptor in case the page falls into one of the special categories of webpages ' +
         'which have additional custom functionalities in the Tapestry viewer. In general these include ' +
         'known sources of audio and video content such as YouTube, Vimeo, and Internet Archive (IA) audio/video ' +
-        "pages. Additionally, we have special handling of IA's Wayback Machine pages",
+        "pages. Additionally, we have special handling of IA's Wayback Machine pages and Wikipedia articles " +
+        '(rendered from the Wikipedia REST API instead of framing the page).',
     ),
 })
 
@@ -164,6 +173,7 @@ export const MediaItemSchema = z.discriminatedUnion('type', [
   BookItemSchema,
   ImageItemSchema,
   IiifItemSchema,
+  Model3dItemSchema,
   PdfItemSchema,
   VideoItemSchema,
   WebpageItemSchema,
@@ -191,6 +201,7 @@ export type AudioItem = z.infer<typeof AudioItemSchema>
 export type BookItem = z.infer<typeof BookItemSchema>
 export type ImageItem = z.infer<typeof ImageItemSchema>
 export type IiifItem = z.infer<typeof IiifItemSchema>
+export type Model3dItem = z.infer<typeof Model3dItemSchema>
 export type PdfItem = z.infer<typeof PdfItemSchema>
 export type VideoItem = z.infer<typeof VideoItemSchema>
 export type WebpageItem = z.infer<typeof WebpageItemSchema>

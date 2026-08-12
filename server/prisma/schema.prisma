@@ -133,6 +133,7 @@ enum ItemType {
   book
   image
   iiif
+  model3d
   pdf
   webpage
 }
@@ -145,6 +146,7 @@ enum WebpageType {
   iaVideo
   soundcloud
   spotify
+  wikipedia
 }
 
 enum ActionType {

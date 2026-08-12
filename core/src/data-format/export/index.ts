@@ -9,6 +9,7 @@ import { ExportV6, ExportV6Schema } from './v6/index.js'
 import z from 'zod/v4'
 import { ExportV7, ExportV7Schema } from './v7/index.js'
 import { ExportV8, ExportV8Schema } from './v8/index.js'
+import { ExportV9, ExportV9Schema } from './v9/index.js'
 import { omit } from 'lodash-es'
 import { determineImageFormat } from '../../utils.js'
 
@@ -224,11 +225,21 @@ class ParserV7 extends ExportParser<ExportV8> {
   }
 }
 
-class ParserV8 extends ExportParser<ExportV8> {
+class ParserV8 extends ExportParser<ExportV9> {
   public readonly schema = ExportV8Schema
   public readonly version = 8
 
-  protected parseInternal(tapestry: ExportV8): ExportV8 {
+  protected parseInternal(tapestry: ExportV8): ExportV9 {
+    // The "model3d" item type is additive, so no item-level migration is required - just bump the version.
+    return { ...tapestry, version: 9 }
+  }
+}
+
+class ParserV9 extends ExportParser<ExportV9> {
+  public readonly schema = ExportV9Schema
+  public readonly version = 9
+
+  protected parseInternal(tapestry: ExportV9): ExportV9 {
     return tapestry
   }
 }
@@ -243,6 +254,7 @@ const PARSERS = [
   new ParserV6(),
   new ParserV7(),
   new ParserV8(),
+  new ParserV9(),
 ] as const
 
 type Last<Type extends readonly unknown[]> = Type extends readonly [...unknown[], infer R]

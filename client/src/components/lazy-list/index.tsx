@@ -17,6 +17,8 @@ export interface LazyListProps<T extends WithId> extends Partial<LazyListLoaderC
   renderItem: (item: T) => ReactNode
   emptyPlaceholder: ReactNode
   loadingIndicator: ReactNode
+  /** Shown instead of `emptyPlaceholder` when `requestItems` throws (e.g. a network error or rate limit). */
+  errorPlaceholder?: ReactNode
   // Normally the lazy list starts with the first item at the top and the user scrolls down to view more items.
   // If reversed, the list will start with the first item at the bottom and the user needs to scroll up instead.
   reversed?: boolean
@@ -48,6 +50,7 @@ export function LazyList<T extends WithId>({
   renderItem,
   emptyPlaceholder,
   loadingIndicator,
+  errorPlaceholder,
   reversed,
   className,
   onLoaderInitialized,
@@ -119,8 +122,10 @@ export function LazyList<T extends WithId>({
       {(reversed ? loadingAfter : loadingBefore) && <LoadingDots />}
       <div className="list-items-container">
         {state === 'initial-load' && loadingIndicator}
+        {state === 'error' && (errorPlaceholder ?? emptyPlaceholder)}
         {(state === 'idle' || state === 'reload') && items.length === 0 && emptyPlaceholder}
         {state !== 'initial-load' &&
+          state !== 'error' &&
           items.map((item) => (
             <div key={item.id} data-item-id={item.id} className="lazy-list-item">
               {renderItem(item)}

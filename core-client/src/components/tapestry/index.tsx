@@ -11,6 +11,7 @@ import { AudioItem } from './items/audio/index.js'
 import { BookItem } from './items/book/index.js'
 import { ImageItem } from './items/image/index.js'
 import { IiifItem } from './items/iiif/index.js'
+import { Model3dItem } from './items/model3d/index.js'
 import { PdfItem } from './items/pdf/index.js'
 import { TextItem } from './items/text/index.js'
 import { VideoItem } from './items/video/index.js'
@@ -100,6 +101,7 @@ export function TapestryConfigProvider({
             BookItem,
             ImageItem,
             IiifItem,
+            Model3dItem,
             PdfItem,
             TextItem,
             VideoItem,

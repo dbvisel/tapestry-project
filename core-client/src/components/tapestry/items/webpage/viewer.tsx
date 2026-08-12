@@ -31,6 +31,8 @@ export const ALLOWED_ORIGINS = [
   'https://w.soundcloud.com',
   // The Spotify embed player loads from open.spotify.com and likewise needs same-origin in the sandbox.
   'https://open.spotify.com',
+  // The Sketchfab embed viewer loads from sketchfab.com and likewise needs same-origin in the sandbox.
+  'https://sketchfab.com',
 ]
 
 function sameOriginAllowed(url: string) {

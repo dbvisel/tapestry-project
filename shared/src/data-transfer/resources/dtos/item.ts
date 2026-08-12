@@ -8,6 +8,7 @@ import {
   ImageItem,
   IiifItem,
   Item,
+  Model3dItem,
   PdfItem,
   TextItem,
   VideoItem,
@@ -58,6 +59,7 @@ export interface VideoItemDto extends VideoItem, BaseMediaItemDto {}
 export interface BookItemDto extends BookItem, BaseMediaItemDto {}
 export interface ImageItemDto extends ImageItem, BaseMediaItemDto {}
 export interface IiifItemDto extends IiifItem, BaseMediaItemDto {}
+export interface Model3dItemDto extends Model3dItem, BaseMediaItemDto {}
 export interface PdfItemDto extends PdfItem, BaseMediaItemDto {}
 export interface WebpageItemDto extends WebpageItem, BaseMediaItemDto {}
 
@@ -66,6 +68,7 @@ export type MediaItemDto =
   | BookItemDto
   | ImageItemDto
   | IiifItemDto
+  | Model3dItemDto
   | PdfItemDto
   | VideoItemDto
   | WebpageItemDto

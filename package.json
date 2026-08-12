@@ -11,11 +11,12 @@
     "client",
     "server",
     "shared",
-    "viewer"
+    "viewer",
+    "mcp-server"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint": "sh -c 'cd core && npm run lint' && sh -c 'cd core-client && npm run lint' && sh -c 'cd shared && npm run lint' && sh -c 'cd client && npm run lint' && sh -c 'cd server && npm run lint' && sh -c 'cd viewer && npm run lint'",
+    "lint": "sh -c 'cd core && npm run lint' && sh -c 'cd core-client && npm run lint' && sh -c 'cd shared && npm run lint' && sh -c 'cd client && npm run lint' && sh -c 'cd server && npm run lint' && sh -c 'cd viewer && npm run lint' && sh -c 'cd mcp-server && npm run lint'",
     "db:start": "docker compose -f ./docker-compose.local.yml --env-file ./server/.env up -d --build db",
     "db:logs": "docker compose -f ./docker-compose.local.yml logs -f db",
     "redis:start": "docker compose -f ./docker-compose.local.yml --env-file ./server/.env up -d --build redis",

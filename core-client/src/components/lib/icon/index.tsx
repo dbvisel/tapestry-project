@@ -131,6 +131,7 @@ const ICONS = [
   'vertical_align_top',
   'video_file',
   'videocam',
+  'view_in_ar',
   'view_sidebar',
   'visibility',
   'volume_up',

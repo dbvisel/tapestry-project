@@ -1,0 +1,21 @@
+{
+  "name": "tapestry-mcp-server",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "MCP server that lets an agent create and read Tapestries on behalf of a logged-in Internet Archive user. Proof of concept.",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "lint": "tsc --noEmit && eslint src --report-unused-disable-directives --max-warnings 0 && prettier ./src --check"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "tapestry-core": "^1.0.0",
+    "tapestry-shared": "^1.0.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.2",
+    "tsx": "^4.20.4"
+  }
+}

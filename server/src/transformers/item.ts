@@ -94,7 +94,7 @@ export async function itemDbToDto(dbItem: Item): Promise<ItemDto> {
     }
   }
 
-  if (type === 'image' || type === 'book') {
+  if (type === 'image' || type === 'book' || type === 'model3d') {
     return {
       ...commonProps,
       type,

@@ -156,6 +156,23 @@ export type IAImport =
       metadata: IAItemMetadata['metadata']
       entries: PlaylistEntry[]
     }
+  | {
+      type: 'CommonsCategory'
+      /** The category's title, e.g. "Category:Cats". */
+      category: string
+      total: number
+    }
+  | {
+      type: 'OpenverseCollection'
+      tag: string
+      total: number
+    }
+  | {
+      type: 'IASearch'
+      /** The raw Internet Archive search query, e.g. `subject:"Gondavalekar"`. */
+      query: string
+      total: number
+    }
 
 export interface Collaborator {
   id: string

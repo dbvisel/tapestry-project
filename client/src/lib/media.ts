@@ -65,18 +65,30 @@ export async function getIiifItemSize(source: MediaItemSource): Promise<Size> {
 }
 
 const DEFAULT_VIDEO_WIDTH = 500
+const DEFAULT_VIDEO_ASPECT_RATIO = 16 / 9
 
 export async function getVideoItemSize(source: MediaItemSource): Promise<Size> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const video = document.createElement('video')
     video.src = mediaSourceToSrc(source)
 
     video.onloadedmetadata = () => {
       URL.revokeObjectURL(video.src)
+      const { videoWidth, videoHeight } = video
+      // Some codecs (e.g. Ogg Theora in browsers that can demux but not decode it) still fire
+      // "loadedmetadata" but never resolve real dimensions, leaving these at 0 - fall back to a default
+      // aspect ratio rather than propagating a division-by-zero NaN into the item's size.
       resolve({
         width: DEFAULT_VIDEO_WIDTH,
-        height: (DEFAULT_VIDEO_WIDTH * video.videoHeight) / video.videoWidth,
+        height:
+          videoWidth > 0 && videoHeight > 0
+            ? (DEFAULT_VIDEO_WIDTH * videoHeight) / videoWidth
+            : DEFAULT_VIDEO_WIDTH / DEFAULT_VIDEO_ASPECT_RATIO,
       })
+    }
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src)
+      reject(new Error(`Failed to load video: ${video.src}`))
     }
   })
 }

@@ -17,28 +17,45 @@ import { RedisCache } from './redis.js'
 const Bucket = config.aws.s3.bucketName
 
 class S3Service {
+  // Used only to sign URLs handed to the browser (uploads, asset display). Must be reachable
+  // from wherever the browser runs.
   private s3Client: S3Client
+  // Used for every direct SDK call (put/copy/delete/list/get) and for signing URLs that the
+  // server/worker fetch themselves. Must be reachable from inside the server/worker containers.
+  private internalS3Client: S3Client
   private cache = new RedisCache('s3')
 
   constructor() {
-    const { endpointUrl, accessKeyId, secretAccessKey, region } = config.aws
+    const { endpointUrl, internalEndpointUrl, accessKeyId, secretAccessKey, region } = config.aws
+    const credentials = accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined
+    const forcePathStyle = config.aws.s3.forcePathStyle
+
     this.s3Client = new S3Client({
       endpoint: endpointUrl || undefined,
       region: region || undefined,
-      credentials: accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey } : undefined,
-      forcePathStyle: config.aws.s3.forcePathStyle,
+      credentials,
+      forcePathStyle,
+    })
+
+    this.internalS3Client = new S3Client({
+      endpoint: internalEndpointUrl || undefined,
+      region: region || undefined,
+      credentials,
+      forcePathStyle,
     })
   }
 
   private async getPresignedUrl(
+    client: S3Client,
     command: PutObjectCommand | GetObjectCommand,
     expiresIn: number,
   ): Promise<string> {
-    return getSignedUrl(this.s3Client, command, { expiresIn })
+    return getSignedUrl(client, command, { expiresIn })
   }
 
   async getCreateObjectUrl(key: string, mimeType: string, expiresIn: number): Promise<string> {
     return this.getPresignedUrl(
+      this.s3Client,
       new PutObjectCommand({
         Bucket,
         Key: key,
@@ -57,6 +74,7 @@ class S3Service {
       key,
       () =>
         this.getPresignedUrl(
+          this.s3Client,
           new GetObjectCommand({
             Bucket,
             Key: key,
@@ -77,8 +95,25 @@ class S3Service {
     )
   }
 
+  // Like getReadObjectUrl, but signed for the internal endpoint. Use this when the server or
+  // worker itself is going to fetch the URL (e.g. streaming an uploaded file for processing) —
+  // never hand this URL to the browser.
+  async getInternalReadObjectUrl(
+    key: string,
+    expiresIn = config.server.assetReadUrlExpiresIn,
+  ): Promise<string> {
+    return this.getPresignedUrl(
+      this.internalS3Client,
+      new GetObjectCommand({
+        Bucket,
+        Key: key,
+      }),
+      expiresIn,
+    )
+  }
+
   async copyObject(key: string, newObjectKey: string) {
-    return this.s3Client.send(
+    return this.internalS3Client.send(
       new CopyObjectCommand({
         Bucket,
         CopySource: `/${Bucket}/${key}`,
@@ -88,7 +123,7 @@ class S3Service {
   }
 
   async putObject(key: string, body: PutObjectCommandInput['Body'], contentType?: string) {
-    return this.s3Client.send(
+    return this.internalS3Client.send(
       new PutObjectCommand({
         Bucket,
         Key: key,
@@ -100,7 +135,7 @@ class S3Service {
 
   async deleteObject(key: string) {
     try {
-      return this.s3Client.send(
+      return this.internalS3Client.send(
         new DeleteObjectCommand({
           Bucket,
           Key: key,
@@ -125,7 +160,7 @@ class S3Service {
       return
     }
 
-    return this.s3Client.send(
+    return this.internalS3Client.send(
       new DeleteObjectsCommand({
         Bucket,
         Delete: { Objects: keys.map((Key) => ({ Key })) },
@@ -136,7 +171,7 @@ class S3Service {
   async *listBucket() {
     let token: string | undefined
     do {
-      const { NextContinuationToken, Contents } = await this.s3Client.send(
+      const { NextContinuationToken, Contents } = await this.internalS3Client.send(
         new ListObjectsV2Command({
           Bucket,
           ContinuationToken: token,
@@ -148,7 +183,7 @@ class S3Service {
   }
 
   async readObject(key: string) {
-    return this.s3Client.send(
+    return this.internalS3Client.send(
       new GetObjectCommand({
         Bucket,
         Key: key,

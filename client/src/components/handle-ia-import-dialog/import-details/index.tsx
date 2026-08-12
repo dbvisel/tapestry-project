@@ -11,14 +11,83 @@ interface ImportDetailsProps {
   import: IAImport
 }
 
-export function ImportDetails({ import: { id, metadata } }: ImportDetailsProps) {
+export function ImportDetails({ import: iaImport }: ImportDetailsProps) {
+  const mdOrLess = useResponsive() <= Breakpoint.MD
+  const textVariant = mdOrLess ? 'bodyXs' : undefined
+
+  if (iaImport.type === 'CommonsCategory') {
+    const categoryUrl = `https://commons.wikimedia.org/wiki/${encodeURIComponent(
+      iaImport.category.replace(/ /g, '_'),
+    )}`
+
+    return (
+      <div className={styles.root}>
+        <div className={styles.header}>
+          <div className={styles.metadataContainer}>
+            <Text variant={mdOrLess ? 'bodySm' : 'h6'} lineClamp={2} style={{ fontWeight: 'bold' }}>
+              {iaImport.category.replace(/^Category:/, '')}
+            </Text>
+            <Text variant={textVariant}>{iaImport.total} files</Text>
+          </div>
+        </div>
+        <Text variant={textVariant} component="div">
+          <a href={categoryUrl} target="_blank" rel="noopener noreferrer">
+            View category on Wikimedia Commons
+          </a>
+        </Text>
+      </div>
+    )
+  }
+
+  if (iaImport.type === 'OpenverseCollection') {
+    const tagUrl = `https://openverse.org/image/collection?tag=${encodeURIComponent(iaImport.tag)}`
+
+    return (
+      <div className={styles.root}>
+        <div className={styles.header}>
+          <div className={styles.metadataContainer}>
+            <Text variant={mdOrLess ? 'bodySm' : 'h6'} lineClamp={2} style={{ fontWeight: 'bold' }}>
+              {iaImport.tag}
+            </Text>
+            <Text variant={textVariant}>{iaImport.total} images</Text>
+          </div>
+        </div>
+        <Text variant={textVariant} component="div">
+          <a href={tagUrl} target="_blank" rel="noopener noreferrer">
+            View collection on Openverse
+          </a>
+        </Text>
+      </div>
+    )
+  }
+
+  if (iaImport.type === 'IASearch') {
+    const searchUrl = `https://archive.org/search?query=${encodeURIComponent(iaImport.query)}`
+
+    return (
+      <div className={styles.root}>
+        <div className={styles.header}>
+          <div className={styles.metadataContainer}>
+            <Text variant={mdOrLess ? 'bodySm' : 'h6'} lineClamp={2} style={{ fontWeight: 'bold' }}>
+              {iaImport.query}
+            </Text>
+            <Text variant={textVariant}>{iaImport.total} items</Text>
+          </div>
+        </div>
+        <Text variant={textVariant} component="div">
+          <a href={searchUrl} target="_blank" rel="noopener noreferrer">
+            View search on Internet Archive
+          </a>
+        </Text>
+      </div>
+    )
+  }
+
+  const { id, metadata } = iaImport
   const description = parser.parseFromString(
     metadata.summary ?? metadata.description ?? '',
     'text/html',
   ).documentElement.textContent
-
-  const mdOrLess = useResponsive() <= Breakpoint.MD
-  const textVariant = mdOrLess ? 'bodyXs' : undefined
 
   const isCollection = metadata.mediatype === 'collection'
 

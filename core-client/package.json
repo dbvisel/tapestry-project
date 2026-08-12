@@ -13,6 +13,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/three": "^0.185.1",
     "@types/youtube-player": "^5.5.11",
     "eslint-plugin-react-hooks": "^5.2.0",
     "stylelint": "^16.25.0",
@@ -66,6 +67,7 @@
     "react-pdf": "^10.2.0",
     "react-router": "^7.9.6",
     "tapestry-core": "^1.0.0",
+    "three": "^0.185.1",
     "video.js": "^8.23.4",
     "youtube-player": "^5.6.0"
   }

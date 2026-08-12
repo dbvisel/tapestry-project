@@ -34,7 +34,7 @@ export type LazyListRequestItems<T> = (
   signal: AbortSignal,
 ) => Promise<ListResponseDto<T>>
 
-type LoaderState = 'initial-load' | 'load-more' | 'reload' | 'idle' | 'new'
+type LoaderState = 'initial-load' | 'load-more' | 'reload' | 'idle' | 'new' | 'error'
 
 export class LazyListLoader<T> extends Observable<ListResponseDto<T> & { state: LoaderState }> {
   private loadingQueue: Promise<void> | null = null
@@ -126,6 +126,7 @@ export class LazyListLoader<T> extends Observable<ListResponseDto<T> & { state: 
     if (!signal || signal.aborted) return
 
     this.loadingQueue = (this.loadingQueue ?? Promise.resolve()).then(async () => {
+      let errored = false
       try {
         this.update((value) => {
           value.state = state
@@ -137,10 +138,11 @@ export class LazyListLoader<T> extends Observable<ListResponseDto<T> & { state: 
           !(error instanceof DOMException && error.name === 'AbortError')
         ) {
           console.error('Error while loading lazy list items', error)
+          errored = true
         }
       } finally {
         this.update((value) => {
-          value.state = 'idle'
+          value.state = errored ? 'error' : 'idle'
         })
       }
     })

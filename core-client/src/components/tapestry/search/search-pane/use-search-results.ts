@@ -17,6 +17,7 @@ const itemIcons: Record<ItemType, IconName> = {
   book: 'auto_stories',
   image: 'image',
   iiif: 'pinch_zoom_in',
+  model3d: 'view_in_ar',
   pdf: 'picture_as_pdf',
   video: 'video_file',
   webpage: 'iframe',
@@ -29,6 +30,7 @@ const itemTypeSynonyms: Partial<Record<ItemType, string[]>> = {
   video: ['clip', 'movie', 'film'],
   image: ['photo', 'picture', 'jpeg', 'png'],
   webpage: ['html', 'page', 'site'],
+  model3d: ['3d', 'stl', 'model', 'mesh'],
 }
 
 const PARSER = new DOMParser()
