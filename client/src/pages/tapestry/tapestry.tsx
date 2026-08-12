@@ -63,9 +63,10 @@ export function Tapestry() {
   const pixiContainerRef = useRef<HTMLDivElement>(null)
   const presentationOrderContainerRef = useRef<HTMLDivElement>(null)
   const tapestryTitle = useTapestryData('title')
-  const { presentationOrderState, hideEditControls } = useTapestryData([
+  const { presentationOrderState, hideEditControls, hideControls } = useTapestryData([
     'presentationOrderState',
     'hideEditControls',
+    'hideControls',
   ])
   const documentTitle = `Tapestry - ${tapestryTitle}`
 
@@ -112,14 +113,14 @@ export function Tapestry() {
         <ViewportScrollbars />
       </div>
       <QuickTips />
-      <MainToolbar className={styles.mainToolbar} />
+      {!hideControls && <MainToolbar className={styles.mainToolbar} />}
       <TapestrySnackbar />
       {!hideEditControls && (
         <>
           <div className={styles.usersData}>
             <DoingWorkIndicator />
             <CollaboratorIndicators />
-            <UserToolbar />
+            {!hideControls && <UserToolbar />}
           </div>
           <CollaboratorCursors />
         </>

@@ -2,12 +2,8 @@ import { Resources } from 'tapestry-shared/src/data-transfer/resources/index.js'
 import { ensureTransaction, prisma } from '../db.js'
 import { RequestContext, RESTResourceImpl } from './base-resource.js'
 import { relDtoToDb } from '../transformers/rel.js'
-import {
-  canEditTapestry,
-  canListTapestryElements,
-  canViewTapestry,
-  scheduleTapestryThumbnailGeneration,
-} from './tapestries.js'
+import { canEditTapestry, canListTapestryElements, canViewTapestry } from './tapestries.js'
+import { scheduleTapestryThumbnailGeneration } from '../tasks/utils.js'
 import { parseIncludes, parseListFilter } from './utils.js'
 import { serialize } from '../transformers/index.js'
 import { Prisma } from '@prisma/client'

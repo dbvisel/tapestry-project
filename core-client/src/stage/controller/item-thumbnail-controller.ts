@@ -18,6 +18,7 @@ import { isMobile } from '../../lib/user-agent'
 
 interface ItemThumbnailState {
   loadedRendition?: {
+    snapshotId: string
     bitmap: ImageBitmap
     meta: ImageAssetRendition
   }
@@ -85,8 +86,9 @@ export class ItemThumbnailController implements TapestryStageController {
         return
       }
 
-      this.thumbnails[itemId].loadedRendition = { bitmap: event.data.bitmap, meta }
-      this.updateItemSnapshot(itemId, Texture.from(event.data.bitmap))
+      const snapshotId = uniqueId('snapshot')
+      this.thumbnails[itemId].loadedRendition = { snapshotId, bitmap: event.data.bitmap, meta }
+      this.updateItemSnapshot(itemId, { id: snapshotId, texture: Texture.from(event.data.bitmap) })
     } finally {
       if (!this.isInitialized && this.initialRequestIds.has(requestId)) {
         this.initialRequestIds.delete(requestId)
@@ -139,6 +141,7 @@ export class ItemThumbnailController implements TapestryStageController {
     scale: number,
     viewportRect: Rectangle,
     maxLOD: number,
+    forceReload = false,
   ) {
     const itemId = item.dto.id
     const thumbnailRenditions = item.dto.thumbnail?.renditions ?? []
@@ -154,9 +157,12 @@ export class ItemThumbnailController implements TapestryStageController {
     const requestedOrLoadedRendition = requestedRendition ?? loadedRendition
 
     const isVisible = viewportRect.intersects(new Rectangle(item.dto))
-    if (!isVisible && requestedOrLoadedRendition) return
+    if (!forceReload && !isVisible && requestedOrLoadedRendition) return
 
-    if ((requestedOrLoadedRendition?.meta.size.width ?? 0) < requiredRendition.size.width) {
+    if (
+      forceReload ||
+      (requestedOrLoadedRendition?.meta.size.width ?? 0) < requiredRendition.size.width
+    ) {
       // We require a thumbnail with higher LOD than the one which is currently loaded or requested for this item.
       // TODO: At some point we may flag items for which we require lower LOD than currently loaded and offload
       // the higher resolution thumbnail in favor of a smaller one in order to save memory.
@@ -196,10 +202,11 @@ export class ItemThumbnailController implements TapestryStageController {
       const state = this.thumbnails[item.dto.id]
       const requestedOrLoadedRendition = (state?.requestedRendition ?? state?.loadedRendition)?.meta
       if (
-        !requestedOrLoadedRendition ||
-        item.dto.thumbnail?.renditions.every((r) => r.source !== requestedOrLoadedRendition.source)
+        item.dto.thumbnail?.renditions.every((r) => r.source !== requestedOrLoadedRendition?.source)
       ) {
-        this.recalculateLODForItem(item, viewport.transform.scale, viewportRect, maxLOD)
+        this.recalculateLODForItem(item, viewport.transform.scale, viewportRect, maxLOD, true)
+      } else if (!item.dto.thumbnail) {
+        this.updateItemSnapshot(item.dto.id, null)
       }
     }
 
@@ -208,32 +215,40 @@ export class ItemThumbnailController implements TapestryStageController {
       .forEach(this.destroyThumbnailForItem)
   }, 250)
 
+  private destroySnapshot(snapshotId?: string | null) {
+    if (!snapshotId || !snapshotRegistry[snapshotId]) return
+
+    try {
+      snapshotRegistry[snapshotId].destroy(true)
+      delete snapshotRegistry[snapshotId]
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.log("Error while destroying texture (it's fine)", error)
+    }
+  }
+
   private destroyThumbnailForItem = (itemId: Id) => {
     if (!this.thumbnails[itemId]) return
 
-    this.thumbnails[itemId].loadedRendition?.bitmap.close()
+    const { loadedRendition } = this.thumbnails[itemId]
     delete this.thumbnails[itemId]
+
+    this.destroySnapshot(loadedRendition?.snapshotId)
+    loadedRendition?.bitmap.close()
   }
 
-  private updateItemSnapshot(itemId: string, snapshot: Texture | null | undefined) {
-    const currentSnapshotId = this.store.get(`items.${itemId}.snapshotId`)
-    if (currentSnapshotId && snapshotRegistry[currentSnapshotId]) {
-      try {
-        snapshotRegistry[currentSnapshotId].destroy(true)
-        delete snapshotRegistry[currentSnapshotId]
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.log("Error while destroying texture (it's fine)", error)
-      }
-    }
+  private updateItemSnapshot(
+    itemId: string,
+    snapshot: { id: string; texture: Texture } | null | undefined,
+  ) {
+    this.destroySnapshot(this.store.get(`items.${itemId}.snapshotId`))
 
-    const snapshotId = snapshot ? uniqueId('snapshot') : null
-    if (snapshotId && snapshot) {
-      snapshotRegistry[snapshotId] = snapshot
+    if (snapshot) {
+      snapshotRegistry[snapshot.id] = snapshot.texture
     }
     this.store.dispatch((model) => {
       if (model.items[itemId]) {
-        model.items[itemId].snapshotId = snapshotId
+        model.items[itemId].snapshotId = snapshot?.id
       }
     })
   }

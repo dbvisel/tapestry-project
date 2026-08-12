@@ -57,11 +57,7 @@ function obtainHoveredPixiTarget(
     return {
       type: 'item',
       modelId: viewContainer.modelRef.modelId,
-      // Assume that when an item is clicked in Pixi, only its drag area can be hovered
-      // XXX: Here again we assume there is a UI component called "dragArea" (see ItemController)
-      // Maybe we should generalize this concept in some way as Tapestry viewer applications
-      // would not have a "drag" area.
-      uiComponent: 'dragArea',
+      uiComponent: container.label,
     }
   }
 
@@ -83,9 +79,9 @@ export function obtainHoverTarget(
 
   const point = toPoint(event)
   const pixiElement = stage.pixi.tapestry.app.renderer.events.rootBoundary.hitTest(point.x, point.y)
-  const hoveredRel = obtainHoveredPixiTarget(pixiElement)
+  const hoveredPixiElement = obtainHoveredPixiTarget(pixiElement)
 
-  return hoveredRel ?? hoveredDomElement
+  return hoveredPixiElement ?? hoveredDomElement
 }
 
 function isHoverTarget(element?: object | null): element is HoverTarget {

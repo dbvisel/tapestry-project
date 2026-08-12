@@ -92,11 +92,14 @@ export class TapestryDataSync {
   private socketManager: SocketManager
   private rtcManager: RTCManager<TapestryRTCMessage>
 
+  readonly reload: TapestryResourcesRepo['pull']
+
   constructor(
     private tapestryId: string,
     private initialMode: InteractionMode,
     private userAccess: UserAccess,
     private deoptimize: boolean,
+    private hideControls: boolean,
   ) {
     this.socketManager = new SocketManager(tapestryId)
     // The conversion is made because TS forbids more generic add/remove event listener functions
@@ -125,6 +128,7 @@ export class TapestryDataSync {
       },
     })
     this.commentThreadsRepo = new CommentThreadsRepo(tapestryId)
+    this.reload = this.tapestryRepo.pull.bind(this.tapestryRepo)
   }
 
   async init(signal?: AbortSignal) {
@@ -147,6 +151,7 @@ export class TapestryDataSync {
       commentThreads,
       idMapToArray(this.tapestryRepo.value.presentationSteps),
       this.deoptimize,
+      this.hideControls,
     )
     this._store = new Store(tapestryViewModel, [
       {
@@ -392,17 +397,17 @@ const patchCommands: Record<TapestryResourceName, PatchCommand> = {
   items: {
     add: (_id, value) => insertItems({ dto: ItemSchema.parse(value) }),
     remove: (id) => deleteItems(id),
-    replace: (id, value) => updateItem(id, { dto: ItemSchema.parse(value) }),
+    replace: (id, value) => updateItem(id, (item) => (item.dto = ItemSchema.parse(value))),
   },
   rels: {
     add: (_id, value) => addRels({ dto: RelSchema.parse(value) }),
     remove: (id) => deleteRels(id),
-    replace: (id, value) => updateRel(id, { dto: RelSchema.parse(value) }),
+    replace: (id, value) => updateRel(id, (rel) => (rel.dto = RelSchema.parse(value))),
   },
   groups: {
     add: (_id, value) => createGroup({ dto: GroupSchema.parse(value) }),
     remove: (id) => deleteGroups([id]),
-    replace: (id, value) => updateGroup(id, { dto: GroupSchema.parse(value) }),
+    replace: (id, value) => updateGroup(id, (group) => (group.dto = GroupSchema.parse(value))),
   },
   tapestries: {
     add: (_id, _value) => {

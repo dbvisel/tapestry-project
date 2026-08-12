@@ -6,14 +6,10 @@ import { Toolbar } from 'tapestry-core-client/src/components/lib/toolbar/index'
 import { useViewportObstruction } from 'tapestry-core-client/src/components/tapestry/hooks/use-viewport-obstruction'
 import { SearchButton } from 'tapestry-core-client/src/components/tapestry/search/search-button'
 import { shortcutLabel } from 'tapestry-core-client/src/lib/keyboard-event'
-import Gemini from '../../../assets/icons/gemini.svg?react'
 import { useTapestryPath } from '../../../hooks/use-tapestry-path'
 import { useSession } from '../../../layouts/session'
 import { useDispatch, useTapestryData } from '../../../pages/tapestry/tapestry-providers'
-import {
-  setSidePane,
-  setSnackbar,
-} from '../../../pages/tapestry/view-model/store-commands/tapestry'
+import { setSnackbar } from '../../../pages/tapestry/view-model/store-commands/tapestry'
 import { CommentButton } from '../../comment-button'
 import { JoinTapestriesModal } from '../../join-tapestries-modal'
 import { ShareDialog } from '../../share-dialog'
@@ -61,17 +57,18 @@ export function UserToolbar({ className }: UserToolbarProps) {
               children: <ShortcutLabel text="Search items">{shortcutLabel('/')}</ShortcutLabel>,
             },
           },
-          {
-            element: (
-              <IconButton
-                icon={Gemini}
-                aria-label="Gemini chat"
-                className={styles.gemini}
-                onClick={() => dispatch(setSidePane('ai-chat', true))}
-              />
-            ),
-            tooltip: { side: 'bottom', children: 'Ask Gemini' },
-          },
+          // Temporarily hidden until requirements and use cases are furthrer clarified
+          // {
+          //   element: (
+          //     <IconButton
+          //       icon={Gemini}
+          //       aria-label="Gemini chat"
+          //       className={styles.gemini}
+          //       onClick={() => dispatch(setSidePane('ai-chat', true))}
+          //     />
+          //   ),
+          //   tooltip: { side: 'bottom', children: 'Ask Gemini' },
+          // },
           {
             element: <CommentButton count={commentThread?.size} type="general-comments" />,
             tooltip: { side: 'bottom', children: 'Comments' },

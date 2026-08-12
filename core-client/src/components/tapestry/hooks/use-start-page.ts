@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router'
-import { Id, NullishInt } from 'tapestry-core/src/data-format/schemas/common'
+import { Id, OptionalInt } from 'tapestry-core/src/data-format/schemas/common'
 
 export function useStartPage(id: Id) {
   const [searchParams] = useSearchParams()
@@ -7,7 +7,7 @@ export function useStartPage(id: Id) {
     return undefined
   }
 
-  const page = NullishInt().safeParse(searchParams.get('page')).data
+  const page = OptionalInt().safeParse(searchParams.get('page') ?? undefined).data
 
   return page ? page - 1 : page
 }

@@ -6,9 +6,7 @@ import { useOutsideClick } from 'tapestry-core-client/src/components/lib/hooks/u
 import { Avatar } from '../avatar'
 import { MenuItemButton } from 'tapestry-core-client/src/components/lib/buttons/index'
 import { Toolbar } from 'tapestry-core-client/src/components/lib/toolbar/index'
-import { Link } from 'react-router'
 import clsx from 'clsx'
-import { userProfilePath } from '../../utils/paths'
 
 interface UserMenuProps {
   user: UserDto
@@ -27,15 +25,16 @@ export function UserMenu({ user, className }: UserMenuProps) {
         className={styles.userMenu}
         direction="column"
         items={[
-          <MenuItemButton
-            icon="api"
-            component={Link}
-            to={userProfilePath('ai-assistants')}
-            onClick={() => setIsUserMenuOpen(false)}
-          >
-            AI Assistant Setup
-          </MenuItemButton>,
-          'separator',
+          // Temporarily hidden until AI chat requirements and use cases are furthrer clarified
+          // <MenuItemButton
+          //   icon="api"
+          //   component={Link}
+          //   to={userProfilePath('ai-assistants')}
+          //   onClick={() => setIsUserMenuOpen(false)}
+          // >
+          //   AI Assistant Setup
+          // </MenuItemButton>,
+          // 'separator',
           <MenuItemButton
             icon="logout"
             onClick={() => {

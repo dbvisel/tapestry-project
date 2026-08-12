@@ -1,3 +1,5 @@
+import { extname } from 'node:path'
+import mime from 'mime'
 import { isString, sumBy } from 'lodash-es'
 import { prisma } from '../db.js'
 import { generateItemKey, s3Service, tapestryKey } from './s3-service.js'
@@ -17,12 +19,13 @@ import {
   parseRootJson,
   CurrentExport,
 } from 'tapestry-core/src/data-format/export/index.js'
-import { Prisma, TapestryCreateJob } from '@prisma/client'
+import { ActionType, Prisma, TapestryCreateJob } from '@prisma/client'
 import { determineWebpageType } from 'tapestry-core/src/web-sources/index.js'
-import { IdMap, idMapToArray, mapIds } from 'tapestry-core/src/utils.js'
-import { fileTypeFromBuffer } from 'file-type'
+import { IdMap, idMapToArray, hasActionType, mapIds } from 'tapestry-core/src/utils.js'
+import { fileTypeFromBuffer, FileTypeResult } from 'file-type'
 import { Item } from 'tapestry-core/src/data-format/schemas/item.js'
 import { generateItemThumbnailRenditionName } from 'tapestry-shared/src/utils.js'
+import { generateThumbnails } from '../tasks/utils.js'
 
 class ImportError extends BadRequestError {
   constructor(
@@ -60,6 +63,29 @@ function* mediaItems(tapestry: CurrentExport) {
   }
 }
 
+export function actionMap(
+  itemIdMap: IdMap<string>,
+  groupIdMap: IdMap<string>,
+  action?: string | null,
+  actionType?: ActionType | null,
+) {
+  if (action && actionType === 'internalLink') {
+    const params = new URLSearchParams(action)
+    const focusValue = params.get('focus')
+    if (focusValue) {
+      const newFocusId = itemIdMap[focusValue] ?? groupIdMap[focusValue]
+      if (newFocusId) {
+        params.set('focus', newFocusId)
+      }
+    }
+    action = params.toString()
+  }
+  return {
+    action,
+    actionType,
+  }
+}
+
 export class TapestryImportService {
   private total!: number
   private progress = 0
@@ -91,6 +117,7 @@ export class TapestryImportService {
         throw new ImportError('unrecognized-version')
       }
       const importedTapestryId = await this.importEntries(userId, tapestry)
+      await generateThumbnails({ tapestryId: importedTapestryId })
 
       await prisma.tapestryCreateJob.update({
         where: { id },
@@ -209,13 +236,18 @@ export class TapestryImportService {
             await tx.imageAssetRendition.createMany({ data: itemThumbnailRenditions })
           }
 
-          const items = await tx.item.createManyAndReturn({
+          const itemIdMap = mapIds(
+            tapestry.items ?? [],
+            tapestry.items?.map(() => ({ id: crypto.randomUUID() })) ?? [],
+          )
+          await tx.item.createManyAndReturn({
             data: await Promise.all(
               tapestry.items?.map<Promise<Prisma.ItemCreateManyInput>>(async (i) => {
                 const isMedia = isMediaItem(i)
                 const source = isMedia ? i.source : undefined
 
                 return {
+                  id: itemIdMap[i.id],
                   tapestryId,
                   height: i.size.height,
                   width: i.size.width,
@@ -228,8 +260,8 @@ export class TapestryImportService {
                   backgroundColor: isMediaItem(i) ? undefined : i.backgroundColor,
                   text: isMedia ? undefined : i.text,
 
-                  ...(i.type === 'actionButton'
-                    ? { action: i.action, actionType: i.actionType }
+                  ...(hasActionType(i)
+                    ? actionMap(itemIdMap, groupIdMap, i.action, i.actionType)
                     : {}),
 
                   source,
@@ -247,7 +279,6 @@ export class TapestryImportService {
             select: { id: true },
           })
 
-          const itemIdMap = mapIds(tapestry.items ?? [], items)
           await tx.rel.createMany({
             data:
               tapestry.rels?.map<Prisma.RelCreateManyInput>((r) => ({
@@ -309,7 +340,7 @@ export class TapestryImportService {
     }
     const blob = await entry.getData(new BlobWriter())
     const buffer = new Uint8Array(await blob.arrayBuffer())
-    const type = await fileTypeFromBuffer(buffer)
+    const type = await this.determineFileType(entryPath, buffer)
 
     const key = keyGenerator(entry, type?.ext)
     await s3Service.putObject(key, buffer, type?.mime)
@@ -320,5 +351,25 @@ export class TapestryImportService {
       data: { progress: this.progress / this.total },
     })
     return key
+  }
+
+  private async determineFileType(
+    fileName: string,
+    fileContent: Uint8Array,
+  ): Promise<FileTypeResult | undefined> {
+    // Attempt to detect MIME type from file extension
+    const ext = extname(fileName)
+    const mimeType = mime.getType(ext)
+    if (mimeType) return { ext, mime: mimeType }
+
+    // If it doesn't work, attempt to detect type from file content
+    const typeFromContent = await fileTypeFromBuffer(fileContent)
+    return (
+      typeFromContent && {
+        // Preserve the original file extension, if any
+        ext: ext || typeFromContent.ext,
+        mime: typeFromContent.mime,
+      }
+    )
   }
 }

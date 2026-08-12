@@ -3,34 +3,35 @@ import { URL } from 'url'
 import { config } from '../../config.js'
 import { createJWT } from '../../auth/tokens.js'
 import { REFRESH_TOKEN_COOKIE_NAME } from '../../auth/index.js'
-import { initWebpage, inNewBrowserPage, WebpageConfig } from './webpage.js'
 import { ThumbnailRenditionOutput } from './index.js'
 import { generateThumbnail } from './image.js'
 import { Page, ScreenshotOptions } from 'puppeteer'
 import { Item } from '@prisma/client'
+import { innerFit } from 'tapestry-core/src/lib/geometry.js'
+import { initWebpage, inNewBrowserPage, pageEval, WebpageConfig } from '../utils.js'
 
-// Helper function that wraps Puppeteer's page.evaluate to avoid TS errors for missing browser (DOM) types
-async function pageEval<T extends unknown[], R>(
-  page: Page,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  callback: (global: any, ...args: T) => R,
-  ...args: T
-) {
-  // @ts-expect-error This will be executed in a browser context
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return
-  const globalHandle = await page.evaluateHandle(() => window)
-  return page.evaluate(callback, globalHandle, ...args)
-}
+const MAX_ITEM_SIZE = 2000
 
 async function takeItemScreenshot(page: Page, item: Item) {
+  const size = innerFit(item, { width: MAX_ITEM_SIZE, height: MAX_ITEM_SIZE })
+  size.width = Math.round(size.width)
+  size.height = Math.round(size.height)
+
+  console.log(
+    `Taking screenshot of item ${item.id} with dimensions ${size.width}x${size.height}...`,
+  )
+
+  console.log('> Setting viewport size...')
+
   await page.setViewport({
     // The browser window should be larger than the required element size in order to accommodate
-    // for the tapestry controls around it.
-    width: item.width + 100,
-    height: item.height + 300,
+    // for the element toolbar space
+    width: size.width,
+    height: size.height + 100,
     deviceScaleFactor: 2,
   })
 
+  console.log('> Focusing item...')
   await pageEval(
     page,
     async (window, itemId) => {
@@ -50,15 +51,27 @@ async function takeItemScreenshot(page: Page, item: Item) {
   )
 
   try {
+    console.log('> Waiting for item selector to become visible...')
     const element = await page.waitForSelector(`[data-model-id="${item.id}"]`, { visible: true })
     if (!element) return null
 
+    console.log('> Waiting for fonts...')
+    await pageEval(page, async (window) => {
+      await window.document.fonts.ready
+    })
+
+    console.log('> Taking screenshot...')
     const screenshot = await element.screenshot({ type: 'png', omitBackground: true })
+
+    console.log('> Generating thumbnail from screenshot...')
     return generateThumbnail(Buffer.from(screenshot), {
-      maxDim: Math.max(item.width, item.height),
+      maxDim: Math.max(size.width, size.height),
       optimizeForText: item.type === 'text' || item.type === 'actionButton',
     })
+  } catch (error) {
+    console.log('> Error!', error)
   } finally {
+    console.log('> Resetting item visibility.')
     // Revert hidden item visibility
     await pageEval(page, (window) => {
       window.postMessage({ type: 'tapestry:showAllItems' })
@@ -70,10 +83,11 @@ export async function* takeTapestryScreenshots(
   tapestryPath: string,
   userId: string,
   site: Omit<WebpageConfig, 'url' | 'setupContext'>,
-  options: ScreenshotOptions,
+  options?: ScreenshotOptions,
 ) {
   const url = new URL(tapestryPath, config.server.viewerUrl)
   url.searchParams.set('deopt', '1')
+  url.searchParams.set('hideControls', '1')
   const src = url.toString()
   const { windowSize, timeout } = site
   console.log(`Taking screenshots of ${src}...`)

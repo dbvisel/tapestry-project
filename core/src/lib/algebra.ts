@@ -5,8 +5,33 @@ export interface Range {
   max: number
 }
 
-export class Polynomial {
-  constructor(private coeffs: number[]) {}
+export class Function {
+  constructor(public valueAt: (x: number) => number) {}
+
+  shifted(y: number): Function {
+    return new Function((x) => this.valueAt(x + y))
+  }
+}
+
+export class Exponent extends Function {
+  constructor(base: number) {
+    super((x) => base ** x)
+  }
+}
+export class Polynomial extends Function {
+  constructor(private coeffs: number[]) {
+    super((x: number) => {
+      let xPower = 1
+      let sum = 0
+      for (const coeff of this.coeffs) {
+        if (Math.abs(coeff) > EPS) {
+          sum += coeff * xPower
+        }
+        xPower *= x
+      }
+      return sum
+    })
+  }
 
   get degree() {
     return Math.max(
@@ -17,18 +42,6 @@ export class Polynomial {
 
   coeffForDegree(degree: number) {
     return this.coeffs[degree] ?? 0
-  }
-
-  valueAt(x: number) {
-    let xPower = 1
-    let sum = 0
-    for (const coeff of this.coeffs) {
-      if (Math.abs(coeff) > EPS) {
-        sum += coeff * xPower
-      }
-      xPower *= x
-    }
-    return sum
   }
 
   derivative() {
@@ -169,4 +182,8 @@ export function roundToPrecision(
   method: 'round' | 'ceil' | 'floor' = 'round',
 ) {
   return Math[method](x / precision) * precision
+}
+
+export function log(base: number, x: number) {
+  return Math.log(x) / Math.log(base)
 }

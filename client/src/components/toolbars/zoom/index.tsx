@@ -17,10 +17,11 @@ interface ZoomControlsProps {
 
 export function ZoomToolbar({ className }: ZoomControlsProps) {
   const obstruction = useViewportObstruction({ clear: { bottom: true, right: true } })
-  const { userAccess, interactionMode, hideEditControls } = useTapestryData([
+  const { userAccess, interactionMode, hideEditControls, hideControls } = useTapestryData([
     'userAccess',
     'interactionMode',
     'hideEditControls',
+    'hideControls',
   ])
 
   const canEdit = userAccess === 'edit'
@@ -65,6 +66,10 @@ export function ZoomToolbar({ className }: ZoomControlsProps) {
       'fullscreen',
     ],
   )
+
+  if (hideControls) {
+    return null
+  }
 
   return (
     <Toolbar

@@ -52,6 +52,7 @@ export function DashboardHeader({ onImport, section, onNewTapestry }: DashboardH
           {user ? (
             <div className={styles.userMenuContainer}>
               <ImportTapestryButton onSelected={onImport} />
+              {/* Temporarily hidden until requirements and use cases are furthrer clarified
               <IconButton
                 icon={Gemini}
                 aria-label="Gemini chat"
@@ -59,7 +60,7 @@ export function DashboardHeader({ onImport, section, onNewTapestry }: DashboardH
                 isActive={isAIChatOpen}
                 onClick={() => setIsAIChatOpen(!isAIChatOpen)}
                 tooltip={{ side: 'bottom', children: 'Ask the AI' }}
-              />
+              /> */}
               <UserMenu user={user} />
             </div>
           ) : (

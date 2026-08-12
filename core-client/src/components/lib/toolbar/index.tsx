@@ -20,6 +20,7 @@ export type SubmenuIds<T, D extends number = 10> = [D] extends [never]
 
 export interface ToolbarElement {
   element: ReactElement
+  key?: string
   tooltip?: TooltipProps
   badge?: string | boolean
 }
@@ -46,7 +47,7 @@ export function isMultiLineMenu(items: MenuItems | ReactNode): items is MaybeMen
   return Array.isArray(items) && Array.isArray(items[0])
 }
 
-function isToolbarElement(elem: ReactElement | ToolbarElement): elem is ToolbarElement {
+function isToolbarElement(elem: SimpleMenuItem): elem is ToolbarElement {
   return !!(elem as ToolbarElement).element
 }
 
@@ -75,13 +76,19 @@ export interface ToolbarRowProps {
   selectedSubmenu?: string[]
 }
 
+function filterDuplicateSeparators(items: MenuItem[]) {
+  return items.filter(
+    (item, index) => index === 0 || item !== 'separator' || items[index - 1] !== 'separator',
+  )
+}
+
 function ToolbarRow({ items, selectedSubmenu }: ToolbarRowProps) {
   const [openSubmenu, ...openNestedSubmenus] = selectedSubmenu ?? []
 
   return (
     <div className="toolbar-row">
       {Array.isArray(items)
-        ? compact(items).map((item, index) =>
+        ? filterDuplicateSeparators(compact(items)).map((item, index) =>
             hasSubmenu(item) ? (
               <div className={clsx('submenu-item', item.id)} key={index}>
                 <SimpleMenuItem ui={item.ui} />
@@ -94,7 +101,7 @@ function ToolbarRow({ items, selectedSubmenu }: ToolbarRowProps) {
                 />
               </div>
             ) : (
-              <SimpleMenuItem key={index} ui={item} />
+              <SimpleMenuItem key={(isToolbarElement(item) && item.key) || index} ui={item} />
             ),
           )
         : items}

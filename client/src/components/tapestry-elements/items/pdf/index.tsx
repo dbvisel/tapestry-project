@@ -55,7 +55,7 @@ export const PdfItem = memo(({ id }: TapestryItemProps) => {
         omit: { share: !pdfDocument },
       })
 
-      return isEdit ? [...pageSelector, ...controls] : [...pageSelector, ...controls]
+      return [...pageSelector, ...controls]
     },
     moreMenuItems: pdfDocument
       ? [

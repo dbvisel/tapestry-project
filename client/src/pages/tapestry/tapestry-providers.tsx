@@ -20,6 +20,7 @@ export const {
 export const TAPESTRY_DATA_SYNC_COMMANDS = [
   'reloadCommentThreads',
   'broadcastCursorPosition',
+  'reload',
 ] as const satisfies (keyof TapestryDataSync)[]
 export type TapestryDataSyncCommandKeys = (typeof TAPESTRY_DATA_SYNC_COMMANDS)[number]
 export type TapestryDataSyncCommands = Pick<TapestryDataSync, TapestryDataSyncCommandKeys>

@@ -10,6 +10,7 @@ import {
   isHoveredRel,
   obtainHoveredDomTarget,
   obtainHoverTarget,
+  toPoint,
 } from '../utils'
 import { capturesPointerEvents, isTouchEvent } from '../../lib/dom'
 import { Store } from '../../lib/store/index'
@@ -19,7 +20,7 @@ import {
   LongPressUpEvent,
 } from '../../lib/long-press-detector'
 import { isMobile } from '../../lib/user-agent'
-import { TapestryViewModel } from '../../view-model'
+import { MAX_SCALE, TapestryViewModel } from '../../view-model'
 import { TapestryStage } from '..'
 import { TapestryStageController } from '.'
 import {
@@ -32,9 +33,23 @@ import {
   toggleGroupSelection,
   toggleItemSelection,
 } from '../../view-model/store-commands/tapestry'
-import { isSingleGroupSelected } from '../../view-model/utils'
-import { isHTTPURL } from 'tapestry-core/src/utils'
+import {
+  getMinScale,
+  getZoomParameters,
+  isSingleGroupSelected,
+  zoomToPoint,
+} from '../../view-model/utils'
+import { hasActionType, idMapToArray, isHTTPURL } from 'tapestry-core/src/utils'
 import { Id } from 'tapestry-core/src/data-format/schemas/common'
+import {
+  defaultBounceAnimation,
+  focusGroup,
+  focusItems,
+  focusMultiselection,
+  FocusOptions,
+  focusRel,
+  transformViewport,
+} from '../../view-model/store-commands/viewport'
 
 type EventTypesMap = {
   gesture: EventTypes<GestureDetector>
@@ -46,6 +61,11 @@ const { eventListener, attachListeners, detachListeners } = createEventRegistry<
   EventTypesMap,
   'desktop' | 'mobile'
 >()
+
+export interface InternalNavigationState {
+  timestamp: number
+  animate?: FocusOptions['animate']
+}
 
 export abstract class ItemController implements TapestryStageController {
   private selectionHandler!: DomDragHandler
@@ -86,6 +106,37 @@ export abstract class ItemController implements TapestryStageController {
 
     this.selectionHandler.deactivate()
     this.longPressDetector.deactivate()
+  }
+
+  @eventListener('gesture', 'double-click')
+  protected onDoubleClickItem({ detail: { hoverTarget, originalEvent } }: ClickEvent) {
+    const tapestry = this.store.get()
+    const zoomOut = isMeta(originalEvent)
+    // If the user is holding the meta key down we will always zoom out,
+    // irrespective of whether they are pointing at an item/rel/group/multiselection
+    if (!hoverTarget || zoomOut) {
+      const { zoomStep, animate } = getZoomParameters(
+        tapestry.viewport.transform.scale,
+        zoomOut ? getMinScale(tapestry.viewport, idMapToArray(tapestry.items)) : MAX_SCALE,
+        false,
+      )
+
+      // Double-click zooms 10 times more than clicking the button from the toolbar
+      const transformed = zoomToPoint(tapestry, zoomStep * 10, toPoint(originalEvent))
+      this.store.dispatch(transformViewport(transformed, animate))
+      return
+    }
+
+    switch (hoverTarget.type) {
+      case 'item':
+        return this.store.dispatch(focusItems([hoverTarget.modelId]))
+      case 'rel':
+        return this.store.dispatch(focusRel(hoverTarget.modelId))
+      case 'group':
+        return this.store.dispatch(focusGroup(hoverTarget.modelId))
+      case 'multiselection':
+        return this.store.dispatch(focusMultiselection())
+    }
   }
 
   @eventListener('gesture', 'click')
@@ -205,14 +256,17 @@ export abstract class ItemController implements TapestryStageController {
     this.store.dispatch(setPointerMode('pan'))
   }
 
-  protected abstract tryNavigateToInternalState(params: URLSearchParams): boolean
+  protected abstract tryNavigateToInternalState(
+    params: URLSearchParams,
+    state: Omit<InternalNavigationState, 'timestamp'>,
+  ): boolean
 
   protected handleActionItemClick(id: Id) {
     const item = this.store.get(`items.${id}.dto`)
-    if (item?.type === 'actionButton' && item.action) {
+    if (item && hasActionType(item) && item.action) {
       if (item.actionType === 'internalLink') {
         const params = new URLSearchParams(item.action)
-        return this.tryNavigateToInternalState(params)
+        return this.tryNavigateToInternalState(params, { animate: defaultBounceAnimation })
       }
 
       if (isHTTPURL(item.action)) {

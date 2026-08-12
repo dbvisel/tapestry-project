@@ -23,6 +23,7 @@ import {
   TapestryAssetUrlCreateDto,
 } from 'tapestry-shared/src/data-transfer/resources/dtos/asset-url'
 import {
+  EDIT_VIEWPORT_LIMITS,
   EditableTapestryViewModel,
   InteractionMode,
   TapestryWithOwner,
@@ -53,7 +54,11 @@ import {
 } from 'tapestry-shared/src/data-transfer/resources/dtos/presentation-step'
 import { FetchContentTypeProxyDto } from 'tapestry-shared/src/data-transfer/resources/dtos/proxy'
 import { ItemType, MediaItemType } from 'tapestry-core/src/data-format/schemas/item'
-import { viewModelFromTapestry } from 'tapestry-core-client/src/view-model/utils'
+import {
+  DEFAULT_VIEWPORT_LIMITS,
+  viewModelFromTapestry,
+} from 'tapestry-core-client/src/view-model/utils'
+import { DEFAULT_LAYER } from '../../pages/tapestry/view-model/utils'
 
 export const EDITABLE_TAPESTRY_PROPS = [
   'background',
@@ -74,6 +79,7 @@ const BASE_EDITABLE_ITEM_PROPS = [
   'type',
   'groupId',
   'notes',
+  'layer',
 ] as const satisfies (keyof ItemDto & keyof ItemUpdateDto)[]
 
 export const EDITABLE_TEXT_ITEM_PROPS = [
@@ -99,6 +105,8 @@ export const EDITABLE_MEDIA_ITEM_PROPS = [
   'stopTime',
   'webpageType',
   'defaultPage',
+  'action',
+  'actionType',
 ] as const satisfies (KeysOfUnion<MediaItemDto> & KeysOfUnion<MediaItemUpdateDto>)[]
 export type EditableMediaItemProps = (typeof EDITABLE_MEDIA_ITEM_PROPS)[number]
 
@@ -161,8 +169,11 @@ export function fromTapestryDto(
   commentThreads: CommentThreadsDto,
   presentationSteps: PresentationStepDto[],
   deoptimize: boolean,
+  hideControls: boolean,
 ): EditableTapestryViewModel {
   const presentationStepViewModels = presentationSteps.map((dto) => ({ dto }))
+
+  const viewportLimits = mode === 'edit' ? EDIT_VIEWPORT_LIMITS : DEFAULT_VIEWPORT_LIMITS
 
   const baseViewModel = viewModelFromTapestry(
     {
@@ -173,10 +184,12 @@ export function fromTapestryDto(
       groups: [],
     },
     [],
+    viewportLimits,
   )
   const editableTapestryViewModel: EditableTapestryViewModel = {
     ...baseViewModel,
-    disableOptimizations: deoptimize,
+    disableOptimizations: mode === 'edit' || deoptimize,
+    hideControls,
     items: Object.fromEntries(tapestry.items?.map((item) => [item.id, { dto: item }]) ?? []),
     rels: Object.fromEntries(tapestry.rels?.map((rel) => [rel.id, { dto: rel }]) ?? []),
     groups: Object.fromEntries(tapestry.groups?.map((group) => [group.id, { dto: group }]) ?? []),
@@ -224,19 +237,20 @@ export function createTextItem(text = '', tapestryId: string): TextItemCreateDto
     position: ORIGIN,
     tapestryId,
     backgroundColor: textItemColor,
+    layer: DEFAULT_LAYER,
   }
 }
 
 export function createActionButtonItem(text = '', tapestryId: string): ActionButtonItemCreateDto {
   return {
     type: 'actionButton',
-    actionType: 'externalLink',
     dropShadow: false,
     position: ORIGIN,
     size: itemSizes.actionButton,
     backgroundColor: userSettings.getTapestrySettings(tapestryId).textItemColor,
     tapestryId,
     text,
+    layer: DEFAULT_LAYER,
   }
 }
 
@@ -312,7 +326,8 @@ export async function createMediaItem<T extends MediaItemType>(
     dropShadow: true,
     position: ORIGIN,
     tapestryId,
-  } as MediaItemCreateDto & { type: T }
+    layer: DEFAULT_LAYER,
+  } satisfies MediaItemCreateDto as MediaItemCreateDto & { type: T }
 }
 
 // TODO: Handle the scenario where the source is an S3 object and therefore needs to be cloned.

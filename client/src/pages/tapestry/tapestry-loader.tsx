@@ -121,7 +121,14 @@ export function TapestryLoader({ id, mode }: TapestryLoaderProps) {
       }
 
       const deopt = !!searchParams.get('deopt')
-      const dataSync = new TapestryDataSync(id, canEdit ? mode : 'view', userAccess, deopt)
+      const hideControls = !!searchParams.get('hideControls')
+      const dataSync = new TapestryDataSync(
+        id,
+        canEdit ? mode : 'view',
+        userAccess,
+        deopt,
+        hideControls,
+      )
       onCleanup(() => dataSync.dispose())
 
       await dataSync.init(signal)
