@@ -76,7 +76,7 @@ export function WelcomeDialog({ onClose, initialCheckboxValue }: WelcomeDialogPr
         </p>
         <p>
           To get started simply click the login link in the upper right and follow the prompt. You
-          only need a Google email address or Internet Archive authenticated email address. Anything
+          only need an Internet Archive account. Anything
           you do will be completely private unless you choose to share.
         </p>
       </Text>

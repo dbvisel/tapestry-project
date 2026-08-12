@@ -49,5 +49,5 @@ export async function generatePrimaryThumbnail(
     return generateYoutubeThumbnail(source!)
   }
 
-  return generateWebpageThumbnail({ url: source!, windowSize: { width, height }, timeout: 120_000 })
+  return generateWebpageThumbnail({ url: source!, windowSize: { width, height }, timeout: 240_000 })
 }

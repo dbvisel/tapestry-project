@@ -52,7 +52,7 @@ export async function initWebpage(
   console.log('>  Configuring viewport...')
   await page.setViewport({ ...windowSize, deviceScaleFactor: 2 })
   console.log(`>  Navigating to ${url}...`)
-  await page.goto(url, { timeout: 120_000 })
+  await page.goto(url, { timeout: 240_000 })
   try {
     console.log(`>  Waiting for network idle...`)
     await page.waitForNetworkIdle({
@@ -67,7 +67,7 @@ export async function initWebpage(
   } catch (error) {
     console.warn(
       'Error while waiting for the page to load before taking a screenshot. ' +
-        'Taking the screenshot anyway, but it may appear broken.',
+      'Taking the screenshot anyway, but it may appear broken.',
       error,
     )
   }

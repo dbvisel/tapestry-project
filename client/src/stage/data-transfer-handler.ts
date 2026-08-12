@@ -18,7 +18,7 @@ function isFileEligible(file: File, maxSize = MAX_FILE_SIZE) {
   return file.size <= maxSize
 }
 
-export class InvalidSourceError extends Error {}
+export class InvalidSourceError extends Error { }
 
 export async function parseMediaSource(
   source: MediaItemSource,
@@ -27,6 +27,19 @@ export async function parseMediaSource(
   // Make sure the source is either a file or an HTTP URL
   if (!(source instanceof File) && !isHTTPURL(source)) {
     throw new InvalidSourceError()
+  }
+
+  if (!(source instanceof File) && isHTTPURL(source)) {
+    // fail URLs that are just IP addresses 
+    const ipv4UrlRegex = /^(?:https?:\/\/)?(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)){3})(?::\d{1,5})?(?:\/.*)?$/;
+    if (ipv4UrlRegex.test(source)) {
+      throw new InvalidSourceError()
+    }
+    // fail URLs that contain archive.org but are not https://archive.org or https://web.archive.org or that look like DNS.
+    const archiveOrgRegex = /^(?!(?:https?:\/\/)?(?:web\.)?archive\.org)(?=.*archive\.org).*$/i;
+    if (archiveOrgRegex.test(source)) {
+      throw new InvalidSourceError()
+    }
   }
 
   const mediaType = await getMediaType(source)
@@ -173,7 +186,7 @@ export class DataTransferHandler {
       return { items, iaImports, largeFiles }
     }
 
-    ;({ items, iaImports } = await parseStringTransferData(stringData, tapestryId))
+    ; ({ items, iaImports } = await parseStringTransferData(stringData, tapestryId))
     return { items, iaImports, largeFiles: [] }
   }
 
