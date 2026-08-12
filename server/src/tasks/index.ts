@@ -17,6 +17,9 @@ export interface JobTypeMap {
   'create-tapestry': {
     tapestryCreateJobId: string
   }
+  'convert-to-pdf': {
+    itemId: string
+  }
 }
 
 export type JobName = keyof JobTypeMap

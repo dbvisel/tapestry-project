@@ -9,6 +9,9 @@ import { ItemType } from 'tapestry-core/src/data-format/schemas/item'
 import { queue } from '.'
 import { prisma } from '../db'
 import { config } from '../config'
+import puppeteer, { BrowserContext, Page } from 'puppeteer'
+import { Size } from 'tapestry-core/src/lib/geometry'
+import { WithOptional } from 'tapestry-core/src/type-utils'
 
 export interface DownloadOpts {
   timeoutMs?: number
@@ -128,5 +131,69 @@ export async function generateThumbnails({
 
   for (const id of new Set(items.map((item) => item.tapestryId))) {
     await scheduleTapestryThumbnailGeneration(id, { skipDelay: true })
+  }
+}
+
+// This is the user agent as if the browser was launched with { headless : false }.
+// Vimeo appears to have some sort of filtering (evidently only for public videos) based on the user agent.
+// When the puppeteer browser is launched with { headless: true } (the default) it automatically has "HeadlessChrome"
+// as part of its user agent, which causes Vimeo to block the requests
+const USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36'
+
+export async function* inNewBrowserPage<T, R = void, N = void>(
+  perform: (page: Page, context: BrowserContext) => AsyncGenerator<T, R, N>,
+) {
+  const start = Date.now()
+  const browser = await puppeteer.launch({ args: config.worker.puppeteerArgs.split(',') })
+  const context = await browser.createBrowserContext()
+  const page = await context.newPage()
+  await page.setUserAgent({ userAgent: USER_AGENT })
+
+  try {
+    yield* perform(page, context)
+  } finally {
+    try {
+      await browser.close()
+    } catch (e) {
+      console.debug('Error while closing puppeteer browser context', e)
+    }
+    console.log(`Browser session completed in ${Date.now() - start}ms.`)
+  }
+}
+
+export interface WebpageConfig {
+  url: string
+  windowSize: Size
+  timeout?: number
+  setupContext?: (context: BrowserContext) => Promise<void>
+}
+
+export async function initWebpage(
+  page: Page,
+  context: BrowserContext,
+  { url, windowSize, setupContext, timeout }: WithOptional<WebpageConfig, 'windowSize'>,
+) {
+  console.log('>  Setting up context...')
+  await setupContext?.(context)
+  if (windowSize) {
+    console.log('>  Configuring viewport...')
+    await page.setViewport({ ...windowSize, deviceScaleFactor: 2 })
+  }
+  console.log(`>  Navigating to ${url}...`)
+  await page.goto(url, { timeout: 120_000 })
+  try {
+    console.log(`>  Waiting for network idle...`)
+    await page.waitForNetworkIdle({
+      idleTime: 3000,
+      concurrency: 0,
+      timeout: timeout ?? 60_000,
+    })
+    console.log(`>  Waiting for fonts to load...`)
+    // @ts-expect-error The following expression will be evaluated in the browser context
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
+    await page.evaluate(() => document.fonts.ready)
+  } catch (error) {
+    console.warn('Error while waiting for the page to load. Proceeding anyway', error)
   }
 }

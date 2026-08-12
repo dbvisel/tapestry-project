@@ -181,6 +181,8 @@ export const ItemSchema = z
       'Items are the main building blocks of tapestries.',
   )
 
+export const ITEM_TYPES: (string | undefined)[] = ItemSchema.options.map((o) => o.shape.type.value)
+
 export type ImageAsset = z.infer<typeof ImageAssetSchema>
 export type ImageAssetRendition = z.infer<typeof ImageAssetRenditionSchema>
 export type TextItem = z.infer<typeof TextItemSchema>

@@ -10,6 +10,10 @@ import { ThemeName, THEMES } from '../../theme/themes'
 import { LiteralColor } from '../../theme/types'
 import { getItemOverlayScale } from '../../view-model/utils'
 import { roundToPrecision } from 'tapestry-core/src/lib/algebra'
+import {
+  displayPersistedState,
+  hasPersistentState,
+} from '../../components/tapestry/tapestry-canvas'
 
 export const snapshotRegistry: IdMap<Texture> = {}
 
@@ -146,7 +150,12 @@ export class ItemRenderer<I extends ItemViewModel> extends TapestryElementRender
     dropShadow,
   }: ItemRenderState<I>) {
     const snapshot = viewModel.snapshotId && snapshotRegistry[viewModel.snapshotId]
-    if (disableOptimizations || isInteractive || viewModel.isPlaying || !snapshot) {
+    const shouldDisplayDom =
+      disableOptimizations || isInteractive || viewModel.isPlaying || !snapshot
+    if (
+      shouldDisplayDom ||
+      (viewModel.hasBeenActive && hasPersistentState(viewModel.dto.type) && displayPersistedState)
+    ) {
       this.thumbnail.visible = false
     } else {
       const { position, size } = viewModel.dto

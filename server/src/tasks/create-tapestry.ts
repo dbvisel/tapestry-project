@@ -1,11 +1,11 @@
-import { getCopyName, IdMap, isHTTPURL } from 'tapestry-core/src/utils.js'
+import { getCopyName, IdMap, isHTTPURL, mapIds } from 'tapestry-core/src/utils.js'
 import { JobTypeMap } from './index.js'
 import { prisma } from '../db.js'
 import { generateItemKey, s3Service, tapestryKey } from '../services/s3-service.js'
 import { Prisma, PrismaClient, TapestryCreateJob } from '@prisma/client'
 import { ITXClientDenyList } from '@prisma/client/runtime/library'
 import { omit, fromPairs, zip, sumBy } from 'lodash-es'
-import { TapestryImportService } from '../services/tapestry-import-service.js'
+import { actionMap, TapestryImportService } from '../services/tapestry-import-service.js'
 
 export async function createTapestry({ tapestryCreateJobId }: JobTypeMap['create-tapestry']) {
   const job = await prisma.tapestryCreateJob.findFirstOrThrow({
@@ -70,7 +70,11 @@ async function forkTapestry(job: TapestryCreateJob) {
           }
         }
 
-        const itemIdMap = await cloneItems(tapestry.items, newTapestryId, tx, groupIdMap)
+        const itemIdMap = mapIds(
+          tapestry.items,
+          tapestry.items.map(() => ({ id: crypto.randomUUID() })),
+        )
+        await cloneItems(tapestry.items, newTapestryId, tx, itemIdMap, groupIdMap)
 
         await cloneRels(tapestry.rels, newTapestryId, tx, itemIdMap)
 
@@ -150,11 +154,24 @@ async function cloneItems(
   items: Prisma.ItemGetPayload<null>[],
   newTapestryId: string,
   tx: Omit<PrismaClient, ITXClientDenyList>,
+  itemIdMap: IdMap<string>,
   groupIdMap: IdMap<string>,
 ): Promise<IdMap<string>> {
   const newItems = await tx.item.createManyAndReturn({
     data: items.map((item) => ({
-      ...omit(item, ['id', 'createdAt', 'updatedAt', 'tapestryId', 'groupId']),
+      ...omit(item, [
+        'id',
+        'createdAt',
+        'updatedAt',
+        'tapestryId',
+        'groupId',
+        'action',
+        'actionType',
+      ]),
+      id: itemIdMap[item.id],
+      ...(item.type === 'actionButton'
+        ? actionMap(itemIdMap, groupIdMap, item.action, item.actionType)
+        : {}),
       groupId: groupIdMap[item.groupId ?? ''],
       tapestryId: newTapestryId,
     })),

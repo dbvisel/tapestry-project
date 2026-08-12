@@ -28,6 +28,7 @@ import {
 import { fetchIIIFFirstCanvas } from 'tapestry-core/src/iiif.js'
 import { extractInternallyHostedS3Key } from '../services/s3-service.js'
 import { Path, WithOptional } from 'tapestry-core/src/type-utils.js'
+import { queue } from '../tasks/index.js'
 
 type ItemWithRequiredAssets = Prisma.ItemGetPayload<{
   include: { thumbnail: { include: { renditions: true } } }
@@ -125,6 +126,18 @@ async function resolveIiifSource(item: (ItemCreateDto | ItemUpdateDto) & { type:
     }
     item.imageService = canvas.imageService
   }
+}
+
+async function scheduleConvertToPdf(item: ItemWithAssets) {
+  await queue.add(
+    'convert-to-pdf',
+    { itemId: item.id },
+    {
+      removeOnComplete: true,
+      removeOnFail: true,
+      jobId: item.id,
+    },
+  )
 }
 
 async function processThumbnailUpdate(
@@ -233,7 +246,11 @@ export async function updateItems(
         const dbItem = await tx.item.findUniqueOrThrow({ where: { id } })
 
         if (dbItem.type !== update.type) {
-          throw new BadRequestError('Item type cannot be changed')
+          if (dbItem.type === 'webpage' && update.type === 'pdf') {
+            await scheduleConvertToPdf(dbItem)
+            return serialize('Item', dbItem)
+          }
+          throw new BadRequestError('This item type coversion is not supported')
         }
 
         if (isMediaItemUpdate(update) && update.source && dbItem.source !== update.source) {

@@ -1,6 +1,6 @@
-import { Tween, Easing } from '@tweenjs/tween.js'
+import { Tween } from '@tweenjs/tween.js'
 import { AnimationOptions, tween } from '../tweening.js'
-import { TapestryViewModel, ZOOM_STEP, MAX_INITIAL_SCALE, MAX_SCALE } from '../index.js'
+import { TapestryViewModel, MAX_INITIAL_SCALE, MAX_SCALE } from '../index.js'
 import {
   LinearTransform,
   Vector,
@@ -23,28 +23,33 @@ import {
   getTranslationRange,
   getMinScale,
   getGroupMembers,
+  getZoomParameters,
 } from '../utils.js'
 import { idMapToArray, pickById } from 'tapestry-core/src/utils.js'
 import {
   cubicBezierPoly,
+  Exponent,
   integrate,
   Polynomial,
   RungeKutta4,
 } from 'tapestry-core/src/lib/algebra.js'
-import { clamp } from 'lodash-es'
+import { clamp, debounce } from 'lodash-es'
 import { selectItems, setInteractiveElement } from './tapestry.js'
 import { PresentationStep } from 'tapestry-core/src/data-format/schemas/presentation-step.js'
 
-const CONTINUOUS_ZOOM_STEP = 0.15
-const CONTINUOUS_ZOOM_ANIMATION_OPTIONS: AnimationOptions = {
-  easing: Easing.Linear.None,
-  duration: 0.1,
-}
+export const CONTINUOUS_ZOOM_SPEED = 3
 const ELEMENT_TOOLBAR_PADDING = 65
 
 let zoomAnimation: Tween | undefined = undefined
+let continuousZoom: 'ZOOM-IN' | 'ZOOM-OUT' | null = null
+const stopContinuosZoom = debounce(() => {
+  if (continuousZoom !== null) {
+    zoomAnimation?.stop()
+    continuousZoom = null
+  }
+}, 100)
 
-export type AnimationEffect = 'linear' | 'bounce'
+export type AnimationEffect = 'linear' | 'bounce' | 'exponential'
 
 export interface ViewportAnimationOptions extends AnimationOptions {
   zoomEffect?: AnimationEffect
@@ -77,6 +82,7 @@ export function transformViewport(
       })
     }
 
+    continuousZoom = null
     zoomAnimation?.stop()
     if (animate) {
       const zoomEffect =
@@ -88,12 +94,16 @@ export function transformViewport(
       const zoomPath =
         zoomEffect === 'linear'
           ? new Polynomial([fromScale, toScale - fromScale])
-          : cubicBezierPoly([
-              fromScale,
-              Math.max(0, fromScale / 1.1),
-              Math.max(0, toScale / 1.1),
-              toScale,
-            ])
+          : zoomEffect === 'exponential'
+            ? new Exponent(toScale / fromScale).shifted(
+                Math.log(fromScale) / Math.log(toScale / fromScale),
+              )
+            : cubicBezierPoly([
+                fromScale,
+                Math.max(0, fromScale / 1.1),
+                Math.max(0, toScale / 1.1),
+                toScale,
+              ])
 
       // The goal here is to "move" (i.e. translate) the viewport at a constant perceived velocity. The perceived
       // translation velocity depends on the zoom level. If we want to move, say, 10 tapestry pixels at zoom level
@@ -112,7 +122,7 @@ export function transformViewport(
         { progress: 0 },
         { progress: 1 },
         ({ progress }) => {
-          const newScale = zoomPath.valueAt(progress)
+          const newScale = progress === 1 ? toScale : zoomPath.valueAt(progress)
           let newTranslation: Vector
           if (zoomEffect === 'linear') {
             // Preserving the translation velocity doesn't look very good for linear transitions, so here we apply
@@ -187,17 +197,35 @@ export function resizeViewport(size: Size): StoreMutationCommand<TapestryViewMod
 
 export function zoomIn(continuous = false): StoreMutationCommand<TapestryViewModel> {
   return (_, { store }) => {
-    const zoomStep = continuous ? CONTINUOUS_ZOOM_STEP : ZOOM_STEP
-    const animate = continuous ? CONTINUOUS_ZOOM_ANIMATION_OPTIONS : true
+    if (continuous && continuousZoom === 'ZOOM-IN') {
+      stopContinuosZoom()
+      return
+    }
+    const scale = store.get('viewport.transform.scale')
+    const { zoomStep, animate } = getZoomParameters(scale, MAX_SCALE, continuous)
     store.dispatch(transformViewport(zoomToCenter(store.get(), zoomStep), animate))
+    if (continuous) {
+      continuousZoom = 'ZOOM-IN'
+      stopContinuosZoom()
+    }
   }
 }
 
 export function zoomOut(continuous = false): StoreMutationCommand<TapestryViewModel> {
   return (_, { store }) => {
-    const zoomStep = continuous ? CONTINUOUS_ZOOM_STEP : ZOOM_STEP
-    const animate = continuous ? CONTINUOUS_ZOOM_ANIMATION_OPTIONS : true
-    store.dispatch(transformViewport(zoomToCenter(store.get(), -zoomStep), animate))
+    if (continuous && continuousZoom === 'ZOOM-OUT') {
+      stopContinuosZoom()
+      return
+    }
+    const { viewport, items } = store.get(['viewport', 'items'])
+    const scale = viewport.transform.scale
+    const minScale = getMinScale(viewport, idMapToArray(items))
+    const { zoomStep, animate } = getZoomParameters(scale, minScale, continuous)
+    store.dispatch(transformViewport(zoomToCenter(store.get(), zoomStep), animate))
+    if (continuous) {
+      continuousZoom = 'ZOOM-OUT'
+      stopContinuosZoom()
+    }
   }
 }
 

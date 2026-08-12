@@ -184,7 +184,7 @@ export class EditorItemController extends ItemController {
     const { items, groups } = this.editorStore.get(['items', 'groups'])
     const focus = params.get('focus')
     const element = focus && (items[focus] ?? groups[focus])
-    if (element) {
+    if (element || focus === 'all') {
       void router.navigate(
         { search: params.toString() },
         {

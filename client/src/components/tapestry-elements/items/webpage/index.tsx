@@ -31,6 +31,7 @@ import {
   WebFrame,
   WebFrameSwitchProps,
 } from 'tapestry-core-client/src/components/tapestry/items/webpage/web-frame'
+import { useConvertToPDF } from '../../../../hooks/use-convert-to-pdf'
 
 const checkedSources = new Map<string, boolean>()
 
@@ -78,6 +79,7 @@ function Webpage({ src, onLoad, ...props }: WebFrameSwitchProps) {
     <div className={styles.error}>
       <Icon icon="sentiment_very_dissatisfied" />
       <Text>{`Cannot frame ${src}`}</Text>
+      <Text>Switch to wayback machine version or convert to PDF.</Text>
     </div>
   ) : null
 }
@@ -98,6 +100,8 @@ export const WebpageItem = memo(({ id }: TapestryItemProps) => {
   const isEditMode = useTapestryData('interactionMode') === 'edit'
   const webSourceParams = parseWebSource(dto)
   const { webpageType } = webSourceParams
+
+  const { conversionStarted, convertToPDFToolbarElement } = useConvertToPDF(id)
 
   const dispatch = useDispatch()
   const patch = ({ webpageType, data }: PatchSourceArgument) =>
@@ -178,6 +182,7 @@ export const WebpageItem = memo(({ id }: TapestryItemProps) => {
                   icon="account_balance"
                   aria-label="Switch to Wayback Machine version"
                   onClick={trySwitchToWBM}
+                  disabled={conversionStarted}
                 />
               ),
               tooltip: { side: 'bottom', children: 'Switch to Wayback Machine version' },
@@ -185,6 +190,9 @@ export const WebpageItem = memo(({ id }: TapestryItemProps) => {
             'separator',
             refreshButton,
             'separator',
+            ...(!(webpageType && PLAYABLE_WEBPAGE_TYPES.includes(webpageType))
+              ? ([convertToPDFToolbarElement, 'separator'] as const)
+              : []),
             ...controls,
           ]
         : [refreshButton, 'separator', ...controls]

@@ -3,12 +3,12 @@ import { URL } from 'url'
 import { config } from '../../config.js'
 import { createJWT } from '../../auth/tokens.js'
 import { REFRESH_TOKEN_COOKIE_NAME } from '../../auth/index.js'
-import { initWebpage, inNewBrowserPage, WebpageConfig } from './webpage.js'
 import { ThumbnailRenditionOutput } from './index.js'
 import { generateThumbnail } from './image.js'
 import { Page, ScreenshotOptions } from 'puppeteer'
 import { Item } from '@prisma/client'
 import { innerFit } from 'tapestry-core/src/lib/geometry.js'
+import { initWebpage, inNewBrowserPage, WebpageConfig } from '../utils.js'
 
 const MAX_ITEM_SIZE = 2000
 

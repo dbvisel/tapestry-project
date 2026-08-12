@@ -31,6 +31,7 @@ import {
   Selection,
   PresentationStepViewModel,
   GroupViewModel,
+  ZOOM_STEP,
 } from './index.js'
 import { THEMES } from '../theme/themes.js'
 import {
@@ -39,13 +40,16 @@ import {
   IdMap,
   idMapToArray,
   isItem,
+  isRel,
 } from 'tapestry-core/src/utils.js'
-import { Range } from 'tapestry-core/src/lib/algebra.js'
+import { log, Range } from 'tapestry-core/src/lib/algebra.js'
 import { ImageAsset, Item, ItemType } from 'tapestry-core/src/data-format/schemas/item.js'
 import { PresentationStep } from 'tapestry-core/src/data-format/schemas/presentation-step.js'
 import { Tapestry, TapestryElement } from 'tapestry-core/src/data-format/schemas/tapestry.js'
 import { isMobile } from '../lib/user-agent.js'
 import { Rel } from 'tapestry-core/src/data-format/schemas/rel.js'
+import { Easing } from '@tweenjs/tween.js'
+import { CONTINUOUS_ZOOM_SPEED } from './store-commands/viewport.js'
 
 const CONTENT_FIT_PADDING = 16
 
@@ -90,27 +94,14 @@ export function isRelViewModel<T extends RelViewModel = RelViewModel>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   obj?: Record<string, any>,
 ): obj is T {
-  return (
-    !!obj &&
-    typeof obj.dto === 'object' &&
-    /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-    typeof obj.dto.id === 'string' &&
-    typeof obj.dto.from === 'object' &&
-    typeof obj.dto.to === 'object'
-  )
+  return !!obj && isRel(obj.dto)
 }
 
 export function isItemViewModel<T extends ItemViewModel = ItemViewModel>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   obj?: Record<string, any>,
 ): obj is T {
-  return (
-    !!obj &&
-    typeof obj.dto === 'object' &&
-    typeof obj.dto.id === 'string' &&
-    typeof obj.dto.type === 'string'
-    /* eslint-enable @typescript-eslint/no-unsafe-member-access */
-  )
+  return !!obj && isItem(obj.dto)
 }
 
 export function getType(viewModel: RelViewModel): 'rel'
@@ -394,4 +385,19 @@ export function isBlobURL(str: string) {
 export function getPrimaryThumbnail(itemOrThumbnail: Item | ImageAsset | undefined | null) {
   const thumbnail = isItem(itemOrThumbnail) ? itemOrThumbnail.thumbnail : itemOrThumbnail
   return thumbnail?.renditions.find((r) => r.isPrimary)?.source
+}
+
+export function getZoomParameters(fromScale: number, toScale: number, continuous: boolean) {
+  return {
+    zoomStep: continuous
+      ? Math.log(toScale / fromScale)
+      : ZOOM_STEP * Math.sign(toScale - fromScale),
+    animate: continuous
+      ? {
+          easing: Easing.Linear.None,
+          duration: Math.abs(log(CONTINUOUS_ZOOM_SPEED, fromScale / toScale)),
+          zoomEffect: 'exponential' as const,
+        }
+      : true,
+  }
 }
