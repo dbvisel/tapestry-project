@@ -270,10 +270,10 @@ export async function uploadAsset(
     params.type === 'import'
       ? params
       : {
-        ...params,
-        fileExtension: extension ?? '',
-        mimeType: file.type,
-      },
+          ...params,
+          fileExtension: extension ?? '',
+          mimeType: file.type,
+        },
     undefined,
     { signal },
   )
@@ -281,9 +281,9 @@ export async function uploadAsset(
   await axios.put(presignedURL, file, {
     headers: {
       'Content-Type': file.type,
-      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", // must match the presign
+      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0', // must match the presign
       // Optional: Safari fallback
-      Pragma: "no-cache",
+      Pragma: 'no-cache',
     },
     signal,
     onUploadProgress: onProgress,
