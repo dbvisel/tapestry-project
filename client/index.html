@@ -1,20 +1,17 @@
 <!doctype html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-eval' blob: accounts.google.com https://cdn.jsdelivr.net; object-src 'self' tapestries.archive.org tapestries-server.archive.org archive.org; font-src 'self' data: fonts.googleapis.com fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data: tapestries-server.archive.org https://tapestries-server.archive.org https://archive.org; connect-src 'self' blob: https://archive.org https://sentry.archive.org https://cdn.jsdelivr.net https://tapestries-server.archive.org https://tapestries-api.archive.org wss://tapestries-api.archive.org; worker-src 'self' data: blob:; media-src 'self' blob: data: https://tapestries-server.archive.org; frame-src *;">
-  <link rel="icon" type="image/png" href="/favicon.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0" />
-  <script src="https://accounts.google.com/gsi/client" async></script>
-</head>
-
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-</body>
-
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob: accounts.google.com https://cdn.jsdelivr.net; object-src 'self' tapestries.archive.org tapestries-server.archive.org archive.org; font-src 'self' data: fonts.googleapis.com fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' blob: data: tapestries-server.archive.org https://tapestries-server.archive.org https://archive.org; connect-src 'self' blob: https://archive.org https://sentry.archive.org https://cdn.jsdelivr.net https://tapestries-server.archive.org https://tapestries-api.archive.org wss://tapestries-api.archive.org; worker-src 'self' data: blob:; media-src 'self' blob: data: https://tapestries-server.archive.org; frame-src *;" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0" />
+    <script src="https://accounts.google.com/gsi/client" async></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
