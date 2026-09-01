@@ -21,6 +21,7 @@ export function ExportButton({ tapestryId, onError, onSuccess, ...props }: Expor
     <MenuItemButton
       {...props}
       icon="upload"
+      disabled={!!progress}
       onClick={() =>
         new TapestryExporter(tapestryId, setProgress, (error) => {
           console.warn(

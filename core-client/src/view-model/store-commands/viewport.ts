@@ -1,12 +1,10 @@
-import { Tween, Easing } from '@tweenjs/tween.js'
+import { Tween } from '@tweenjs/tween.js'
 import { AnimationOptions, tween } from '../tweening.js'
-import { TapestryViewModel, ZOOM_STEP, MAX_INITIAL_SCALE, MAX_SCALE } from '../index.js'
+import { TapestryViewModel, MAX_INITIAL_SCALE, MAX_SCALE } from '../index.js'
 import {
   LinearTransform,
   Vector,
   Size,
-  coordMax,
-  coordMin,
   add,
   Rectangle,
   neg,
@@ -14,6 +12,7 @@ import {
   mul,
   IDENTITY_TRANSFORM,
   ORIGIN,
+  clampCoords,
 } from 'tapestry-core/src/lib/geometry.js'
 import { StoreMutationCommand } from '../../lib/store/index.js'
 import {
@@ -23,28 +22,40 @@ import {
   getTranslationRange,
   getMinScale,
   getGroupMembers,
+  getZoomParameters,
+  getBoundingRectangle,
+  getSelectionItems,
 } from '../utils.js'
 import { idMapToArray, pickById } from 'tapestry-core/src/utils.js'
 import {
   cubicBezierPoly,
+  Exponent,
   integrate,
   Polynomial,
   RungeKutta4,
 } from 'tapestry-core/src/lib/algebra.js'
-import { clamp } from 'lodash-es'
+import { clamp, debounce, isEqual } from 'lodash-es'
 import { selectItems, setInteractiveElement } from './tapestry.js'
 import { PresentationStep } from 'tapestry-core/src/data-format/schemas/presentation-step.js'
 
-const CONTINUOUS_ZOOM_STEP = 0.15
-const CONTINUOUS_ZOOM_ANIMATION_OPTIONS: AnimationOptions = {
-  easing: Easing.Linear.None,
-  duration: 0.1,
+export const defaultBounceAnimation: FocusOptions['animate'] = {
+  zoomEffect: 'bounce',
+  duration: 1,
 }
+
+export const CONTINUOUS_ZOOM_SPEED = 3
 const ELEMENT_TOOLBAR_PADDING = 65
 
 let zoomAnimation: Tween | undefined = undefined
+let continuousZoom: 'ZOOM-IN' | 'ZOOM-OUT' | null = null
+const stopContinuosZoom = debounce(() => {
+  if (continuousZoom !== null) {
+    zoomAnimation?.stop()
+    continuousZoom = null
+  }
+}, 100)
 
-export type AnimationEffect = 'linear' | 'bounce'
+export type AnimationEffect = 'linear' | 'bounce' | 'exponential'
 
 export interface ViewportAnimationOptions extends AnimationOptions {
   zoomEffect?: AnimationEffect
@@ -77,6 +88,7 @@ export function transformViewport(
       })
     }
 
+    continuousZoom = null
     zoomAnimation?.stop()
     if (animate) {
       const zoomEffect =
@@ -88,12 +100,16 @@ export function transformViewport(
       const zoomPath =
         zoomEffect === 'linear'
           ? new Polynomial([fromScale, toScale - fromScale])
-          : cubicBezierPoly([
-              fromScale,
-              Math.max(0, fromScale / 1.1),
-              Math.max(0, toScale / 1.1),
-              toScale,
-            ])
+          : zoomEffect === 'exponential'
+            ? new Exponent(toScale / fromScale).shifted(
+                Math.log(fromScale) / Math.log(toScale / fromScale),
+              )
+            : cubicBezierPoly([
+                fromScale,
+                Math.max(0, fromScale / 1.1),
+                Math.max(0, toScale / 1.1),
+                toScale,
+              ])
 
       // The goal here is to "move" (i.e. translate) the viewport at a constant perceived velocity. The perceived
       // translation velocity depends on the zoom level. If we want to move, say, 10 tapestry pixels at zoom level
@@ -112,7 +128,7 @@ export function transformViewport(
         { progress: 0 },
         { progress: 1 },
         ({ progress }) => {
-          const newScale = zoomPath.valueAt(progress)
+          const newScale = progress === 1 ? toScale : zoomPath.valueAt(progress)
           let newTranslation: Vector
           if (zoomEffect === 'linear') {
             // Preserving the translation velocity doesn't look very good for linear transitions, so here we apply
@@ -131,7 +147,10 @@ export function transformViewport(
             )
           }
 
-          updateViewport({ scale: newScale, translation: newTranslation })
+          updateViewport({
+            scale: newScale,
+            translation: progress === 1 ? { dx, dy } : newTranslation,
+          })
         },
         typeof animate === 'object' ? animate : {},
       )
@@ -161,7 +180,7 @@ export function setDefaultViewport(animate: boolean): StoreMutationCommand<Tapes
     // of the coordinate system. If MAX_INITIAL_SCALE is 1 the viewport fits around it
     store.dispatch(
       transformViewport(
-        zoomToFit(viewportRect, obstructions, focusRect, minScale, maxScale),
+        zoomToFit(viewportRect, startView ? [] : obstructions, focusRect, minScale, maxScale),
         animate,
       ),
     )
@@ -187,17 +206,35 @@ export function resizeViewport(size: Size): StoreMutationCommand<TapestryViewMod
 
 export function zoomIn(continuous = false): StoreMutationCommand<TapestryViewModel> {
   return (_, { store }) => {
-    const zoomStep = continuous ? CONTINUOUS_ZOOM_STEP : ZOOM_STEP
-    const animate = continuous ? CONTINUOUS_ZOOM_ANIMATION_OPTIONS : true
+    if (continuous && continuousZoom === 'ZOOM-IN') {
+      stopContinuosZoom()
+      return
+    }
+    const scale = store.get('viewport.transform.scale')
+    const { zoomStep, animate } = getZoomParameters(scale, MAX_SCALE, continuous)
     store.dispatch(transformViewport(zoomToCenter(store.get(), zoomStep), animate))
+    if (continuous) {
+      continuousZoom = 'ZOOM-IN'
+      stopContinuosZoom()
+    }
   }
 }
 
 export function zoomOut(continuous = false): StoreMutationCommand<TapestryViewModel> {
   return (_, { store }) => {
-    const zoomStep = continuous ? CONTINUOUS_ZOOM_STEP : ZOOM_STEP
-    const animate = continuous ? CONTINUOUS_ZOOM_ANIMATION_OPTIONS : true
-    store.dispatch(transformViewport(zoomToCenter(store.get(), -zoomStep), animate))
+    if (continuous && continuousZoom === 'ZOOM-OUT') {
+      stopContinuosZoom()
+      return
+    }
+    const { viewport, items } = store.get(['viewport', 'items'])
+    const scale = viewport.transform.scale
+    const minScale = getMinScale(viewport, idMapToArray(items))
+    const { zoomStep, animate } = getZoomParameters(scale, minScale, continuous)
+    store.dispatch(transformViewport(zoomToCenter(store.get(), zoomStep), animate))
+    if (continuous) {
+      continuousZoom = 'ZOOM-OUT'
+      stopContinuosZoom()
+    }
   }
 }
 
@@ -221,10 +258,12 @@ export function zoomTo(
 export interface FocusOptions {
   addToolbarPadding?: boolean
   animate?: boolean | ViewportAnimationOptions
+  previousTransform?: LinearTransform
 }
+
 export function focusItems(
   itemIds?: Iterable<string>,
-  { addToolbarPadding = false, animate = true }: FocusOptions = {},
+  { addToolbarPadding = false, animate = true, previousTransform }: FocusOptions = {},
 ): StoreMutationCommand<TapestryViewModel> {
   return (_, { store }) => {
     const { viewport, items: allItemsMap } = store.get()
@@ -241,34 +280,55 @@ export function focusItems(
       : viewport.size
     const viewportRect = new Rectangle(viewportOrigin, viewportSize)
     const centralAnchor = { x: viewport.size.width / 2, y: viewport.size.height / 2 }
-    store.dispatch(
-      transformViewport(
-        zoomToFit(
-          viewportRect,
-          idMapToArray(viewport.obstructions),
-          focusRect,
-          minScale,
-          MAX_SCALE,
-          centralAnchor,
-        ),
-        animate,
-      ),
+    const transformed = zoomToFit(
+      viewportRect,
+      idMapToArray(viewport.obstructions),
+      focusRect,
+      minScale,
+      MAX_SCALE,
+      centralAnchor,
     )
+
+    const shouldRestore =
+      previousTransform !== undefined && isEqual(transformed, viewport.transform)
+
+    store.dispatch(transformViewport(shouldRestore ? previousTransform : transformed, animate))
   }
 }
 
 export function focusGroup(
   id: string,
-  animate?: FocusOptions['animate'],
+  options: Pick<FocusOptions, 'animate' | 'previousTransform'> = {},
 ): StoreMutationCommand<TapestryViewModel> {
   return (_, { store }) => {
     const groupItemIds = getGroupMembers(id, idMapToArray(store.get('items'))).map(
       (item) => item.dto.id,
     )
     store.dispatch(
-      focusItems(groupItemIds, { addToolbarPadding: true, animate }),
+      focusItems(groupItemIds, { addToolbarPadding: true, ...options }),
       selectItems(groupItemIds),
     )
+  }
+}
+
+export function focusRel(
+  id: string,
+  options: Pick<FocusOptions, 'previousTransform'> = {},
+): StoreMutationCommand<TapestryViewModel> {
+  return (_, { store }) => {
+    const rel = store.get('rels')[id]
+    if (!rel) return
+
+    store.dispatch(focusItems([rel.dto.from.itemId, rel.dto.to.itemId], options))
+  }
+}
+
+export function focusMultiselection(
+  options: Pick<FocusOptions, 'previousTransform'> = {},
+): StoreMutationCommand<TapestryViewModel> {
+  return (_, { store }) => {
+    const items = getSelectionItems(store.get()).map((i) => i.dto.id)
+    store.dispatch(focusItems(items, { addToolbarPadding: true, ...options }))
   }
 }
 
@@ -283,7 +343,7 @@ export function focusPresentationStep(
         setInteractiveElement({ modelType: 'item', modelId: step.itemId }),
       )
     } else {
-      store.dispatch(focusGroup(step.groupId, animate))
+      store.dispatch(focusGroup(step.groupId, { animate }))
     }
   }
 }
@@ -294,8 +354,21 @@ export function panViewport({
 }: Partial<Vector>): StoreMutationCommand<TapestryViewModel> {
   return (_, { store }) => {
     const translation = add(store.get('viewport.transform.translation'), { dx, dy })
-    const [min, max] = getTranslationRange(store.get())
-    const clippedTranslation = coordMax(min, coordMin(translation, max))
+    const {
+      viewport: {
+        size,
+        transform: { scale },
+        maxTranslationRatio,
+      },
+      items,
+    } = store.get(['viewport', 'items'])
+    const [min, max] = getTranslationRange(
+      size,
+      scale,
+      getBoundingRectangle(idMapToArray(items)),
+      maxTranslationRatio,
+    )
+    const clippedTranslation = clampCoords(translation, min, max)
 
     store.dispatch(transformViewport({ translation: clippedTranslation }))
   }
@@ -306,5 +379,11 @@ export function setIsZoomingLocked(
 ): StoreMutationCommand<TapestryViewModel> {
   return (model) => {
     model.viewport.isZoomingLocked = isZoomingLocked
+  }
+}
+
+export function setThumbnailsInitialized(): StoreMutationCommand<TapestryViewModel> {
+  return (model) => {
+    model.thumbnailsInitialized = true
   }
 }

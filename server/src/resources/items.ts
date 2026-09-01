@@ -23,6 +23,7 @@ import { findWebSourceParser } from 'tapestry-core/src/web-sources/index.js'
 import { MEDIA_ITEM_TYPES } from 'tapestry-core/src/data-format/schemas/item.js'
 import { extractInternallyHostedS3Key } from '../services/s3-service.js'
 import { Path, WithOptional } from 'tapestry-core/src/type-utils.js'
+import { queue } from '../tasks/index.js'
 
 type ItemWithRequiredAssets = Prisma.ItemGetPayload<{
   include: { thumbnail: { include: { renditions: true } } }
@@ -96,6 +97,18 @@ async function resolveWebSource(item: ItemCreateDto | ItemUpdateDto) {
 
   item.source = webSourceParser.construct(webSourceParser.parse(item.source))
   item.webpageType = webSourceParser.webpageType
+}
+
+async function scheduleConvertToPdf(item: ItemWithAssets) {
+  await queue.add(
+    'convert-to-pdf',
+    { itemId: item.id },
+    {
+      removeOnComplete: true,
+      removeOnFail: true,
+      jobId: item.id,
+    },
+  )
 }
 
 async function processThumbnailUpdate(
@@ -204,7 +217,11 @@ export async function updateItems(
         const dbItem = await tx.item.findUniqueOrThrow({ where: { id } })
 
         if (dbItem.type !== update.type) {
-          throw new BadRequestError('Item type cannot be changed')
+          if (dbItem.type === 'webpage' && update.type === 'pdf') {
+            await scheduleConvertToPdf(dbItem)
+            return serialize('Item', dbItem)
+          }
+          throw new BadRequestError('This item type coversion is not supported')
         }
 
         if (isMediaItemUpdate(update) && update.source && dbItem.source !== update.source) {
@@ -260,13 +277,13 @@ export async function destroyItems(
 
     const items = await tx.item.findMany({
       where: { id: { in: ids } },
-      select: { tapestryId: true, id: true },
+      select: { tapestryId: true, id: true, thumbnailId: true },
     })
     const itemsByTapestry = groupBy(items, (i) => i.tapestryId)
 
     const payload = await tx.item.deleteMany({ where: { id: { in: ids } } })
 
-    const imageAssetIds = compact(items.map((item) => item.tapestryId))
+    const imageAssetIds = compact(items.map((item) => item.thumbnailId))
     if (imageAssetIds.length > 0) {
       await tx.imageAsset.deleteMany({ where: { id: { in: imageAssetIds } } })
     }

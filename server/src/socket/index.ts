@@ -30,20 +30,43 @@ import {
 } from 'tapestry-shared/src/data-transfer/rtc-signaling/types.js'
 
 const DEFAULT_CHANNEL = 'default'
+export class DBSubscriber {
+  private subscriber: Subscriber<{ [DEFAULT_CHANNEL]: DBNotification }>
 
-async function initSubscriber() {
-  const subscriber = createSubscriber({
-    connectionString: config.db.connectionString,
-    ssl: config.db.useSsl ? { rejectUnauthorized: false } : false,
-  })
-  await subscriber.connect()
-  await subscriber.listenTo(DEFAULT_CHANNEL)
+  constructor() {
+    this.subscriber = createSubscriber({
+      connectionString: config.db.connectionString,
+      ssl: config.db.useSsl ? { rejectUnauthorized: false } : false,
+    })
+  }
 
-  subscriber.events.on('error', (e) => {
-    console.error('Subscription error', e)
-  })
+  async init() {
+    await this.subscriber.connect()
+    await this.subscriber.listenTo(DEFAULT_CHANNEL)
 
-  return subscriber
+    this.subscriber.events.on('error', (e) => {
+      console.error('Subscription error', e)
+    })
+  }
+
+  onNotification(listener: (notification: DBNotification) => void) {
+    this.subscriber.notifications.on(DEFAULT_CHANNEL, listener)
+  }
+
+  async notify(notification: DBNotification) {
+    return this.subscriber.notify(DEFAULT_CHANNEL, notification)
+  }
+
+  async close() {
+    return this.subscriber.close()
+  }
+
+  static async fireNotification(notification: DBNotification) {
+    const dbSubscriber = new DBSubscriber()
+    await dbSubscriber.init()
+    await dbSubscriber.notify(notification)
+    await dbSubscriber.close()
+  }
 }
 
 export class Connection {
@@ -63,7 +86,7 @@ export class Connection {
 class SocketServer {
   private connections: Connection[] = []
 
-  private dbSubscriber?: Subscriber
+  private dbSubscriber?: DBSubscriber
 
   async init(server: http.Server) {
     const io = new Server<ClientToServerEvents, ServerToClientEvents, never, { userId: string }>(
@@ -117,8 +140,9 @@ class SocketServer {
       })
     })
 
-    this.dbSubscriber = await initSubscriber()
-    this.dbSubscriber.notifications.on(DEFAULT_CHANNEL, async (payload) => {
+    this.dbSubscriber = new DBSubscriber()
+    await this.dbSubscriber.init()
+    this.dbSubscriber.onNotification(async (payload) => {
       const notification = DBNotificationSchema.parse(payload)
       for (const c of this.connections) {
         if (c.id === notification.socketId) {
@@ -305,7 +329,7 @@ class SocketServer {
 
   private async notify(notification: DBNotification) {
     try {
-      await this.dbSubscriber?.notify(DEFAULT_CHANNEL, notification)
+      await this.dbSubscriber?.notify(notification)
     } catch (error) {
       console.warn('Error while notifying', error)
       // This is intentionally swallowed, since we don't want to crash the server

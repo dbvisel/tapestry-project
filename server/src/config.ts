@@ -1,7 +1,7 @@
 import '@dotenvx/dotenvx/config'
 import z from 'zod/v4'
 import { deepFreeze } from 'tapestry-core/src/utils.js'
-import { NullishInt, Port } from 'tapestry-core/src/data-format/schemas/common'
+import { OptionalInt, Port } from 'tapestry-core/src/data-format/schemas/common'
 
 const checkTrue = z
   .string()
@@ -28,10 +28,10 @@ export const config = deepFreeze(
       GOOGLE_CLIENT_ID: z.string().default(''),
       IA_ACCOUNT_ID: z.string().default(''),
       IA_SECRET: z.string().default(''),
-      WBM_RESPONSE_CACHE_DURATION: NullishInt(3600), // one hour in seconds
-      WBM_EMPTY_RESPONSE_CACHE_DURATION: NullishInt(120),
-      ASSET_READ_URL_EXPIRES_IN: NullishInt(604_800), // on week in seconds
-      ASSET_READ_URL_VALIDATION_EXPIRES_IN: NullishInt(600),
+      WBM_RESPONSE_CACHE_DURATION: OptionalInt(3600), // one hour in seconds
+      WBM_EMPTY_RESPONSE_CACHE_DURATION: OptionalInt(120),
+      ASSET_READ_URL_EXPIRES_IN: OptionalInt(604_800), // on week in seconds
+      ASSET_READ_URL_VALIDATION_EXPIRES_IN: OptionalInt(600),
       EXTERNAL_SERVER_URL: z.string(),
       VIEWER_URL: z.string(),
       SECURE_COOKIE: z
@@ -58,10 +58,10 @@ export const config = deepFreeze(
       // Worker
       PUPPETEER_ARGS: z.string().default(''),
       S3_CLEAN_UP_CRON_PATTERN: z.string().default('0 0 * * *'),
-      TAPESTRY_THUMBNAIL_GENERATION_DELAY: NullishInt(150_000),
+      TAPESTRY_THUMBNAIL_GENERATION_DELAY: OptionalInt(150_000),
       // 5 minute timeout may look too long but some larger tapestries with a lot of iframes load slowly
       // so we better wait for a while in order to take a nicer screenshot.
-      TAPESTRY_THUMBNAIL_GENERATION_TIMEOUT: NullishInt(300_000),
+      TAPESTRY_THUMBNAIL_GENERATION_TIMEOUT: OptionalInt(300_000),
 
       // Queue monitoring
       JOBS_ADMIN_NAME: z.string().nullish(),

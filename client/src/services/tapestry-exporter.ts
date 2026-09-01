@@ -9,7 +9,7 @@ import { BlobWriter, TextReader, ZipWriter, BlobReader, Reader } from '@zip.js/z
 import { createDraft, finishDraft } from 'immer'
 import { fileExtension, isMediaItem } from 'tapestry-core/src/utils'
 import axios, { AxiosError } from 'axios'
-import { sumBy } from 'lodash-es'
+import { sumBy, uniqBy } from 'lodash-es'
 import { listAll, resource } from './rest-resources'
 import { generateItemThumbnailRenditionName } from 'tapestry-shared/src/utils'
 
@@ -23,9 +23,9 @@ interface Download {
 }
 
 export class TapestryExporter {
-  private toDownload = new Set<string>()
+  private toDownload?: number
   private downloadProgress: Record<string, { progress: number; total: number }> = {}
-  private toCompress = new Set<string>()
+  private toCompress?: number
   private compressionProgress: Record<string, { progress: number; total: number }> = {}
 
   private downloaded = 0
@@ -40,10 +40,15 @@ export class TapestryExporter {
     private tapestryId: string,
     private progressCallback: (progress: ProgressEvent) => unknown,
     private errorCallback: (error: unknown) => unknown,
-  ) {}
+  ) {
+    this.progressCallback = (progress: ProgressEvent) => {
+      if (!this.killSwitch.signal.aborted) {
+        progressCallback(progress)
+      }
+    }
+  }
 
   private async download(filePath: string, source: string) {
-    this.toDownload.add(filePath)
     const { data } = await axios.get<Blob>(source, {
       responseType: 'blob',
       headers: {
@@ -61,7 +66,9 @@ export class TapestryExporter {
       onDownloadProgress: ({ loaded, total }) => {
         this.downloadProgress[filePath] = { progress: loaded, total: total! }
         const values = Object.values(this.downloadProgress)
-        this.downloaded = sumBy(values, (v) => v.progress) / sumBy(values, (v) => v.total)
+        if (this.toDownload) {
+          this.downloaded = sumBy(values, (v) => v.progress / v.total) / this.toDownload
+        }
         this.notifyProgress()
       },
       signal: this.killSwitch.signal,
@@ -72,6 +79,7 @@ export class TapestryExporter {
   async export(callback: (url: string, title: string) => unknown) {
     this.blobWriter = new BlobWriter()
     this.zipWriter = new ZipWriter(this.blobWriter)
+    this.progressCallback('pending')
 
     try {
       const tapestry = await resource('tapestries').read(
@@ -107,14 +115,20 @@ export class TapestryExporter {
           const filePath = addToDownloads(item.source, item.id, 'items/')
           item.source = `${FILE_PREFIX}${filePath}`
         }
-        item.thumbnail?.renditions.forEach((rendition) => {
-          const filePath = addToDownloads(
-            rendition.source,
-            generateItemThumbnailRenditionName(item.id, rendition),
-            'items/',
+        if (item.thumbnail) {
+          // Make sure export is fault tolerant and doesn't fail in case of duplicate renditions
+          item.thumbnail.renditions = uniqBy(item.thumbnail.renditions, (r) =>
+            generateItemThumbnailRenditionName(item.id, r),
           )
-          rendition.source = `${FILE_PREFIX}${filePath}`
-        })
+          item.thumbnail.renditions.forEach((rendition) => {
+            const filePath = addToDownloads(
+              rendition.source,
+              generateItemThumbnailRenditionName(item.id, rendition),
+              'items/',
+            )
+            rendition.source = `${FILE_PREFIX}${filePath}`
+          })
+        }
         // This needs to be done after the call to isMediaItem, since otherwise the zod parsing will fail
         // @ts-expect-error removing to comply with export schema
         delete item.tapestryId
@@ -136,6 +150,7 @@ export class TapestryExporter {
         presentation,
       })
 
+      this.toDownload = downloads.length
       const buffers = await this.parseDownloads(downloads, rootJson)
       const compressionPromises = []
       for (const { path, blob } of buffers) {
@@ -145,6 +160,7 @@ export class TapestryExporter {
         this.addToWriter(ROOT_FILE, new TextReader(JSON.stringify(rootJson))),
       )
 
+      this.toCompress = compressionPromises.length
       await Promise.all(compressionPromises)
 
       await this.zipWriter.close()
@@ -210,12 +226,13 @@ export class TapestryExporter {
   }
 
   private addToWriter<T>(path: string, reader: Reader<T>) {
-    this.toCompress.add(path)
     return this.zipWriter.add(path, reader, {
       onprogress: (progress) => {
         this.compressionProgress[path].progress = progress
         const values = Object.values(this.compressionProgress)
-        this.compressed = sumBy(values, (v) => v.progress) / sumBy(values, (v) => v.total)
+        if (this.toCompress) {
+          this.compressed = sumBy(values, (v) => v.progress / v.total) / this.toCompress
+        }
         this.notifyProgress()
         return undefined
       },
@@ -228,11 +245,15 @@ export class TapestryExporter {
   }
 
   private notifyProgress() {
-    const allDownloading = this.toDownload.size === Object.keys(this.downloadProgress).length
-    const allCompressing = this.toCompress.size === Object.keys(this.compressionProgress).length
-
-    if ((allDownloading && this.downloaded !== 1) || allCompressing) {
-      this.progressCallback({ compression: this.compressed, download: this.downloaded })
+    if (
+      this.toDownload &&
+      this.downloaded !== 0 &&
+      !(this.toDownload === 1 && this.compressed === 0)
+    ) {
+      this.progressCallback({
+        download: this.downloaded,
+        compression: this.compressed,
+      })
     } else {
       this.progressCallback('pending')
     }

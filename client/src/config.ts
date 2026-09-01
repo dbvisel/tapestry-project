@@ -1,4 +1,4 @@
-import { NullishInt } from 'tapestry-core/src/data-format/schemas/common'
+import { OptionalInt } from 'tapestry-core/src/data-format/schemas/common'
 import { deepFreeze } from 'tapestry-core/src/utils'
 import { treeifyError, z } from 'zod/v4'
 
@@ -9,9 +9,9 @@ const parsedConfig = deepFreeze(
       VITE_AUTH_PROVIDER: z.enum(['ia', 'google']).catch('google'),
       VITE_GOOGLE_CLIENT_ID: z.string(),
       VITE_BUG_REPORT_FORM_URL: z.string(),
-      VITE_AI_CHAT_EXPIRES_IN: NullishInt(3600), // default: one hour
-      VITE_WEBPAGE_LOADER_TIMEOUT: NullishInt(3, (schema) => schema.nonnegative()),
-      VITE_WBM_SNAPSHOT_POLLING_PERIOD: NullishInt(600), // default: ten minutes
+      VITE_AI_CHAT_EXPIRES_IN: OptionalInt(3600), // default: one hour
+      VITE_WEBPAGE_LOADER_TIMEOUT: OptionalInt(3, (schema) => schema.nonnegative()),
+      VITE_WBM_SNAPSHOT_POLLING_PERIOD: OptionalInt(600), // default: ten minutes
       VITE_STUN_SERVER: z.string(),
       VITE_SENTRY_DSN: z.string().default(''),
     })

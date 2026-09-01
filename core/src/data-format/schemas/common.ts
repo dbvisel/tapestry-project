@@ -36,12 +36,12 @@ type OptionalNumber = ZodOptional<
 >
 
 type SchemaTransformer = (schema: ZodCoercedNumber<unknown>) => ZodCoercedNumber<unknown>
-export function NullishInt(
+export function OptionalInt(
   defaultValue: number,
   apply?: SchemaTransformer,
 ): ZodDefault<OptionalNumber>
-export function NullishInt(defaultValue?: number, apply?: SchemaTransformer): OptionalNumber
-export function NullishInt(
+export function OptionalInt(defaultValue?: number, apply?: SchemaTransformer): OptionalNumber
+export function OptionalInt(
   defaultValue?: number,
   apply?: SchemaTransformer,
 ): ZodDefault<OptionalNumber> | OptionalNumber {
@@ -57,7 +57,7 @@ export function NullishInt(
 }
 
 export const Port = (defaultPort: number) =>
-  NullishInt(defaultPort, (schema) => schema.min(0).max(65535))
+  OptionalInt(defaultPort, (schema) => schema.min(0).max(65535))
 
 export type HexColor = z.infer<typeof HexColorSchema>
 export type Point = z.infer<typeof PointSchema>

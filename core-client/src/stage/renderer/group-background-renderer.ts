@@ -12,7 +12,7 @@ import { idMapToArray } from 'tapestry-core/src/utils'
 import { drawDashedPolyline, roundedRectPolyline } from '../../lib/pixi'
 import { getOpaqueColor, LiteralColor } from '../../theme/types'
 import { Point, Rectangle, Size } from 'tapestry-core/src/lib/geometry'
-import { clamp } from 'lodash-es'
+import { clamp, throttle } from 'lodash-es'
 import { ThemeName, THEMES } from '../../theme/themes'
 import { TapestryElementRenderer } from './tapestry-element-renderer'
 import { roundToPrecision } from 'tapestry-core/src/lib/algebra'
@@ -35,6 +35,12 @@ export class GroupBackgroundRenderer<G extends GroupViewModel> extends TapestryE
 > {
   private background = new Graphics({ eventMode: 'static' })
   private border = new Graphics({ eventMode: 'none' })
+  private computeBorderScale = throttle(
+    (store: Store<TapestryViewModel>) =>
+      computeRestrictedScale(store.get('viewport'), idMapToArray(store.get('items'))) /
+      store.get('viewport.transform.scale'),
+    100,
+  )
 
   constructor(store: Store<TapestryViewModel>, stage: TapestryStage, viewModel: G) {
     super(store, stage, viewModel)
@@ -51,9 +57,7 @@ export class GroupBackgroundRenderer<G extends GroupViewModel> extends TapestryE
     const bounds = getBoundingRectangle(groupMembers).expand(MULTISELECT_RECTANGLE_PADDING)
     const backgroundColor = (hasBackground && color) || null
     const borderColor = hasBorder && color ? getOpaqueColor(color) : null
-    const scale = store.get('viewport.transform.scale')
-    const borderScale =
-      computeRestrictedScale(store.get('viewport'), idMapToArray(store.get('items'))) / scale
+    const borderScale = this.computeBorderScale(store)
 
     return {
       origin: bounds.position,

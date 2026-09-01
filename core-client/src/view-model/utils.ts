@@ -1,8 +1,7 @@
 import { clamp } from 'lodash-es'
 import {
   add,
-  coordMax,
-  coordMin,
+  clampCoords,
   IDENTITY_TRANSFORM,
   linearMap,
   LinearTransform,
@@ -31,6 +30,7 @@ import {
   Selection,
   PresentationStepViewModel,
   GroupViewModel,
+  ZOOM_STEP,
 } from './index.js'
 import { THEMES } from '../theme/themes.js'
 import {
@@ -39,19 +39,28 @@ import {
   IdMap,
   idMapToArray,
   isItem,
+  isRel,
 } from 'tapestry-core/src/utils.js'
-import { Range } from 'tapestry-core/src/lib/algebra.js'
+import { log, Range } from 'tapestry-core/src/lib/algebra.js'
 import { ImageAsset, Item, ItemType } from 'tapestry-core/src/data-format/schemas/item.js'
 import { PresentationStep } from 'tapestry-core/src/data-format/schemas/presentation-step.js'
 import { Tapestry, TapestryElement } from 'tapestry-core/src/data-format/schemas/tapestry.js'
 import { isMobile } from '../lib/user-agent.js'
 import { Rel } from 'tapestry-core/src/data-format/schemas/rel.js'
+import { Easing } from '@tweenjs/tween.js'
+import { CONTINUOUS_ZOOM_SPEED } from './store-commands/viewport.js'
 
 const CONTENT_FIT_PADDING = 16
+export type ViewportLimits = Pick<Viewport, 'minZoomContentRatio' | 'maxTranslationRatio'>
+export const DEFAULT_VIEWPORT_LIMITS: ViewportLimits = {
+  minZoomContentRatio: 0.75,
+  maxTranslationRatio: 0.55,
+}
 
 export function viewModelFromTapestry(
   tapestry: Tapestry,
   presentationSteps: PresentationStep[],
+  viewportLimits?: ViewportLimits,
 ): TapestryViewModel {
   const presentationStepViewModels = presentationSteps.map((dto) => ({ dto }))
   return {
@@ -70,6 +79,8 @@ export function viewModelFromTapestry(
     },
     viewport: {
       transform: IDENTITY_TRANSFORM,
+      ...DEFAULT_VIEWPORT_LIMITS,
+      ...viewportLimits,
       size: {
         width: 0,
         height: 0,
@@ -90,27 +101,14 @@ export function isRelViewModel<T extends RelViewModel = RelViewModel>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   obj?: Record<string, any>,
 ): obj is T {
-  return (
-    !!obj &&
-    typeof obj.dto === 'object' &&
-    /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-    typeof obj.dto.id === 'string' &&
-    typeof obj.dto.from === 'object' &&
-    typeof obj.dto.to === 'object'
-  )
+  return !!obj && isRel(obj.dto)
 }
 
 export function isItemViewModel<T extends ItemViewModel = ItemViewModel>(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   obj?: Record<string, any>,
 ): obj is T {
-  return (
-    !!obj &&
-    typeof obj.dto === 'object' &&
-    typeof obj.dto.id === 'string' &&
-    typeof obj.dto.type === 'string'
-    /* eslint-enable @typescript-eslint/no-unsafe-member-access */
-  )
+  return !!obj && isItem(obj.dto)
 }
 
 export function getType(viewModel: RelViewModel): 'rel'
@@ -174,13 +172,31 @@ export function itemsFocusRect<I extends ItemViewModel>(
 }
 
 export function zoomToCenter(tapestry: TapestryViewModel, step: number) {
+  const { width, height } = tapestry.viewport.size
+  return zoomToPoint(tapestry, step, { x: width / 2, y: height / 2 })
+}
+
+export function zoomToPoint(
+  tapestry: TapestryViewModel,
+  step: number,
+  point: Point,
+): LinearTransform {
   const {
-    size: { height, width },
     transform: { scale, translation },
   } = tapestry.viewport
-  const center = { x: width / 2, y: height / 2 }
   const minScale = getMinScale(tapestry.viewport, idMapToArray(tapestry.items))
-  return scaleBy(scale, translation, step, center, minScale, MAX_SCALE)
+  const result = scaleBy(scale, translation, step, point, minScale, MAX_SCALE)
+
+  const [min, max] = getTranslationRange(
+    tapestry.viewport.size,
+    result.scale,
+    getBoundingRectangle(idMapToArray(tapestry.items)),
+    tapestry.viewport.maxTranslationRatio,
+  )
+  return {
+    ...result,
+    translation: clampCoords(result.translation, min, max),
+  }
 }
 
 export function zoomToFit(
@@ -233,38 +249,39 @@ export function getTheme(tapestry: TapestryViewModel) {
   return THEMES[tapestry.theme]
 }
 
-const MIN_ZOOM_CONTENT_RATIO = 0.5
 const MAX_MIN_SCALE = 0.5
 export function getMinScale<I extends ItemViewModel>(viewport: Viewport, items: I[]) {
   const boundingRect = getBoundingRectangle(items)
-  const widthRatio = (MIN_ZOOM_CONTENT_RATIO * viewport.size.width) / boundingRect.width
-  const heightRatio = (MIN_ZOOM_CONTENT_RATIO * viewport.size.height) / boundingRect.height
+  const widthRatio = (viewport.minZoomContentRatio * viewport.size.width) / boundingRect.width
+  const heightRatio = (viewport.minZoomContentRatio * viewport.size.height) / boundingRect.height
   // Since the minimal scale is dynamic, it may become larger than the current scale of the tapestry.
   // In this case take the current scale to be the minimum to avoid jumps while zooming smoothly.
   const { scale } = viewport.transform
   return Math.min(scale, widthRatio, heightRatio, MAX_MIN_SCALE)
 }
 
-const TRANSLATION_RANGE_PADDING: Vector = { dx: 20, dy: 20 }
-export function getTranslationRange(tapestry: TapestryViewModel): [Vector, Vector] {
-  const {
-    transform: { scale, translation },
-    size: { width, height },
-  } = tapestry.viewport
+export function getTranslationRange(
+  { width, height }: Size,
+  scale: number,
+  boundingRect: Rectangle,
+  maxTranslationRatio: number,
+): [Vector, Vector] {
   const viewportOffset = { dx: width, dy: height }
 
-  const boundingRect = getBoundingRectangle(idMapToArray(tapestry.items))
   const topLeftOffset = { dx: boundingRect.left, dy: boundingRect.top }
   const bottomRightOffset = { dx: boundingRect.right, dy: boundingRect.bottom }
 
-  const minTranslation: Vector = add(neg(mul(scale, bottomRightOffset)), TRANSLATION_RANGE_PADDING)
-  const maxTranslation = add(
-    viewportOffset,
-    neg(mul(scale, topLeftOffset)),
-    neg(TRANSLATION_RANGE_PADDING),
+  const minTranslation: Vector = add(
+    neg(mul(scale, bottomRightOffset)),
+    mul(1 - maxTranslationRatio, viewportOffset),
   )
 
-  return [coordMin(minTranslation, translation), coordMax(maxTranslation, translation)]
+  const maxTranslation: Vector = add(
+    mul(maxTranslationRatio, viewportOffset),
+    neg(mul(scale, topLeftOffset)),
+  )
+
+  return [minTranslation, maxTranslation]
 }
 
 export interface ScrollbarPosition {
@@ -287,8 +304,8 @@ export function getScrollbarPositions<I extends ItemViewModel>(
     height: viewportSize.height / scale,
   }
   const canvasPadding: Vector = {
-    dx: viewportSizeOnTapestry.width - TRANSLATION_RANGE_PADDING.dx / scale,
-    dy: viewportSizeOnTapestry.height - TRANSLATION_RANGE_PADDING.dy / scale,
+    dx: viewportSizeOnTapestry.width * viewport.maxTranslationRatio,
+    dy: viewportSizeOnTapestry.height * viewport.maxTranslationRatio,
   }
   const canvasSize: Size = {
     width: tapestryBoundingBox.width + 2 * canvasPadding.dx,
@@ -394,4 +411,19 @@ export function isBlobURL(str: string) {
 export function getPrimaryThumbnail(itemOrThumbnail: Item | ImageAsset | undefined | null) {
   const thumbnail = isItem(itemOrThumbnail) ? itemOrThumbnail.thumbnail : itemOrThumbnail
   return thumbnail?.renditions.find((r) => r.isPrimary)?.source
+}
+
+export function getZoomParameters(fromScale: number, toScale: number, continuous: boolean) {
+  return {
+    zoomStep: continuous
+      ? Math.log(toScale / fromScale)
+      : ZOOM_STEP * Math.sign(toScale - fromScale),
+    animate: continuous
+      ? {
+          easing: Easing.Linear.None,
+          duration: Math.abs(log(CONTINUOUS_ZOOM_SPEED, fromScale / toScale)),
+          zoomEffect: 'exponential' as const,
+        }
+      : true,
+  }
 }
