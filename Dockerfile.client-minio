@@ -20,7 +20,7 @@ ADD client/ /app/client
 # default values, so no environment-specific config or secrets (e.g. the
 # Sentry DSN) are committed to the repository.
 ARG VITE_API_URL
-ARG VITE_AUTH_PROVIDER
+ARG VITE_AUTH_PROVIDERS
 ARG VITE_GOOGLE_CLIENT_ID
 ARG VITE_BUG_REPORT_FORM_URL
 ARG VITE_AI_CHAT_EXPIRES_IN

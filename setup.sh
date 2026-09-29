@@ -173,15 +173,24 @@ HOST="${HOST:-localhost}"
 hdr "Authentication"
 info "'ia' = Internet Archive username/password login (no extra config)."
 info "'google' = Sign in with Google (needs an OAuth client ID)."
+info "The app can use one or both at once — enter a comma-separated list, e.g. google,ia."
 while :; do
-  ask AUTH_PROVIDER "Auth provider (ia/google)" "$(get_env AUTH_PROVIDER "$SOURCE")"
-  AUTH_PROVIDER="${AUTH_PROVIDER:-ia}"
-  case "$AUTH_PROVIDER" in ia|google) break ;; *) warn "Enter 'ia' or 'google'." ;; esac
+  ask AUTH_PROVIDERS "Auth provider(s), comma-separated (ia/google)" "$(get_env AUTH_PROVIDERS "$SOURCE")"
+  AUTH_PROVIDERS="${AUTH_PROVIDERS:-ia}"
+  valid=1
+  old_ifs="$IFS"
+  IFS=,
+  for provider in $AUTH_PROVIDERS; do
+    case "$provider" in ia|google) ;; *) valid=0 ;; esac
+  done
+  IFS="$old_ifs"
+  [ "$valid" = 1 ] && break
+  warn "Enter 'ia', 'google', or both separated by a comma (e.g. google,ia)."
 done
 GOOGLE_CLIENT_ID="$(get_env GOOGLE_CLIENT_ID "$SOURCE")"
-if [ "$AUTH_PROVIDER" = "google" ]; then
-  ask GOOGLE_CLIENT_ID "Google OAuth client ID" "$GOOGLE_CLIENT_ID"
-fi
+case ",$AUTH_PROVIDERS," in
+  *,google,*) ask GOOGLE_CLIENT_ID "Google OAuth client ID" "$GOOGLE_CLIENT_ID" ;;
+esac
 
 hdr "Internet Archive shared sessions (optional)"
 info "Only needed if deploying under *.archive.org for auto-login. Leave blank to skip."
@@ -281,7 +290,7 @@ hdr "Writing $ENV_FILE"
 set_env HOST                  "$HOST"
 set_env VIEWER_URL            "$VIEWER_URL"
 set_env EXTERNAL_SERVER_URL   "$EXTERNAL_SERVER_URL"
-set_env AUTH_PROVIDER         "$AUTH_PROVIDER"
+set_env AUTH_PROVIDERS        "$AUTH_PROVIDERS"
 set_env GOOGLE_CLIENT_ID      "$GOOGLE_CLIENT_ID"
 set_env IA_ACCOUNT_ID         "$IA_ACCOUNT_ID"
 set_env IA_SECRET             "$IA_SECRET"
@@ -305,7 +314,7 @@ set_env VAULT_SECRET_ID          "$VAULT_SECRET_ID"
 set_env VAULT_ADDR               "http://vault:8200"
 
 # VITE_API_URL is the only VITE_-prefixed key the compose file reads directly.
-# The client's other build args (VITE_AUTH_PROVIDER, VITE_BUG_REPORT_FORM_URL,
+# The client's other build args (VITE_AUTH_PROVIDERS, VITE_BUG_REPORT_FORM_URL,
 # VITE_SENTRY_DSN, ...) are mapped by docker-compose.minio.yml from the non-VITE
 # keys set above, so there's nothing else to write here.
 set_env VITE_API_URL              "$VITE_API_URL"
@@ -314,7 +323,7 @@ ok "Wrote $ENV_FILE"
 info "  Host ............ $HOST"
 info "  Client URL ...... $VIEWER_URL"
 info "  API URL ......... $EXTERNAL_SERVER_URL"
-info "  Auth provider ... $AUTH_PROVIDER"
+info "  Auth provider(s)  $AUTH_PROVIDERS"
 if [ "$STORAGE" = "aws" ]; then
   info "  Storage ......... AWS S3 (bucket '${AWS_S3_BUCKET_NAME}', region ${AWS_REGION})"
 else
