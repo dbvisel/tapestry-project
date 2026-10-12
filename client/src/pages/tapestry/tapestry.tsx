@@ -43,6 +43,9 @@ import { ViewportDebugData } from './viewport-debug-data'
 import { createPixiApp } from 'tapestry-core-client/src/stage'
 import { PropsWithStyle } from 'tapestry-core-client/src/components/lib'
 import { ZOrder } from 'tapestry-core-client/src/components/tapestry'
+import { LoadedRendition } from 'tapestry-core-client/src/stage/controller/item-thumbnail-controller'
+import { IdMap } from 'tapestry-core/src/utils'
+import { fullName } from '../../model/data/utils'
 
 function useInteractionModeUrlParam() {
   const { username, slug, edit } = useTapestryPathParams()
@@ -58,17 +61,22 @@ function useInteractionModeUrlParam() {
   }, [edit, username, slug, dispatch, navigate])
 }
 
-export function Tapestry() {
+interface TapestryProps {
+  initialThumbnails?: IdMap<LoadedRendition>
+}
+
+export function Tapestry({ initialThumbnails }: TapestryProps) {
   const sceneRef = useRef<HTMLDivElement>(null)
   const pixiContainerRef = useRef<HTMLDivElement>(null)
   const presentationOrderContainerRef = useRef<HTMLDivElement>(null)
-  const tapestryTitle = useTapestryData('title')
+  const { title, owner } = useTapestryData(['title', 'owner'])
   const { presentationOrderState, hideEditControls, hideControls } = useTapestryData([
     'presentationOrderState',
     'hideEditControls',
     'hideControls',
   ])
-  const documentTitle = `Tapestry - ${tapestryTitle}`
+  const documentTitle = `Tapestry - ${title}`
+  const dispatch = useDispatch()
 
   const store = useTapestryStore()
   const tapestryDataSyncCommandsRef = usePropRef(useTapestryDataSyncCommands())
@@ -92,7 +100,22 @@ export function Tapestry() {
       ]
     },
     lifecycleController: (stage) =>
-      new EditorLifecycleController(store, stage, tapestryDataSyncCommandsRef.current),
+      new EditorLifecycleController(
+        store,
+        stage,
+        tapestryDataSyncCommandsRef.current,
+        initialThumbnails,
+      ),
+    onInit: () => {
+      if (title) {
+        dispatch(
+          setSnackbar({
+            text: `"${title}" by ${fullName(owner)}`,
+            duration: 4,
+          }),
+        )
+      }
+    },
   })
 
   useInteractionModeUrlParam()
