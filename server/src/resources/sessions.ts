@@ -32,6 +32,14 @@ async function invokeLoginProvider(
     return AUTH_PROVIDERS.gsi.login(request, rawResponse)
   }
 
+  if (request.authType === 'orcid') {
+    return AUTH_PROVIDERS.orcid.login(request, rawResponse)
+  }
+
+  if (request.authType === 'wikimedia') {
+    return AUTH_PROVIDERS.wikimedia.login(request, rawResponse)
+  }
+
   if (request.authType === 'iaCookies') {
     return AUTH_PROVIDERS.iaCookies.login(
       {
@@ -45,6 +53,10 @@ async function invokeLoginProvider(
 
   if (request.authType === 'iaCredentials') {
     return AUTH_PROVIDERS.iaCredentials.login(request, rawResponse)
+  }
+
+  if (request.authType === 'bluesky') {
+    return AUTH_PROVIDERS.bluesky.login(request, rawResponse)
   }
 
   // After we successfully invoke the "registerUser" provider, we must clear the "registrationToken" cookie
