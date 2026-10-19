@@ -59,7 +59,11 @@ export class AuthService extends Observable<AuthServiceState> {
   }
 
   constructor() {
-    super({ user: null, isInitialized: false, pendingRegistration: undefined })
+    super({
+      user: null,
+      isInitialized: false,
+      pendingRegistration: undefined,
+    })
   }
 
   private doPrepare() {
@@ -124,6 +128,13 @@ export class AuthService extends Observable<AuthServiceState> {
 
   async refresh(loadUser: boolean, signal?: GenericAbortSignal) {
     await this.doLogin({ authType: 'refreshToken' }, loadUser, signal)
+  }
+
+  async tryOauthLogin(): Promise<boolean> {
+    for (const provider of AUTH_PROVIDERS) {
+      if (await provider.tryCompleteLogin?.()) return true
+    }
+    return false
   }
 
   login(credentials: SessionCreateDto, signal?: GenericAbortSignal): Promise<void> {
