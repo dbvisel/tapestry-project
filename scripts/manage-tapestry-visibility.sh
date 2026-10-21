@@ -103,7 +103,7 @@ printf '\n'
 psql_exec -P pager=off -c "
   SELECT
     row_number() OVER (ORDER BY t.title, t.id) AS \"#\",
-    t.title,
+    CASE WHEN length(t.title) > 40 THEN left(t.title, 40) || '…' ELSE t.title END AS title,
     COALESCE(u.email, t.\"ownerId\") AS owner,
     t.slug,
     t.visibility,
