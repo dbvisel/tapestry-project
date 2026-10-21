@@ -26,6 +26,7 @@ export const ALLOWED_ORIGINS = [
   'https://archive.org',
   'https://youtube.com',
   'https://player.vimeo.com',
+  'https://tapestries.media',
 ]
 
 const ALLOWED_DOMAINS = ['.wikipedia.org']
