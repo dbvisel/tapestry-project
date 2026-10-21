@@ -2,10 +2,10 @@
 #
 # list-tapestries.sh
 #
-# Print a read-only report of every tapestry on the installation: title, owner,
-# last updated, and its view URL (built from the owner's username and the
-# tapestry's slug — the real route is /u/:username/:slug, see
-# client/src/utils/paths.ts). No picking, no mutation — for that, see the
+# Print a read-only report of every tapestry on the installation: title,
+# owner, visibility, last updated, and its view URL (built from the owner's
+# username and the tapestry's slug — the real route is /u/:username/:slug,
+# see client/src/utils/paths.ts). No picking, no mutation — for that, see the
 # sibling tapestry-visibility skill's manage-tapestry-visibility.sh, which
 # shares this same connection harness.
 #
@@ -20,9 +20,13 @@
 #   REPO_DIR=.. ./list-tapestries.sh
 #
 # Usage:
-#   ./list-tapestries.sh            # list everything, sorted by most recently updated
-#   ./list-tapestries.sh <search>   # filter by title / slug / owner email
-#   ./list-tapestries.sh --help     # show this help
+#   ./list-tapestries.sh                      # list everything, most recently updated first
+#   ./list-tapestries.sh <search>              # filter by title / slug / owner email
+#   ./list-tapestries.sh --sort title          # sort by a different column instead
+#   ./list-tapestries.sh <search> --sort owner # filter and sort together, either order
+#   ./list-tapestries.sh --help                # show this help
+#
+# --sort accepts: title, owner, visibility, updated (default)
 #
 # Overridable via environment variables (defaults shown):
 #   REPO_DIR=.
@@ -32,13 +36,41 @@
 #   BASE_URL=                 # e.g. https://tapestries.archive.org — prefixed
 #                              # onto each URL; left unset, URLs are shown as
 #                              # the bare /u/username/slug path instead.
+#   SORT=updated               # same as --sort
 #
 set -euo pipefail
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-  grep '^#' "$0" | sed 's/^# \{0,1\}//'
-  exit 0
+if [ -t 1 ]; then
+  BOLD=$(printf '\033[1m'); DIM=$(printf '\033[2m'); RED=$(printf '\033[31m')
+  RESET=$(printf '\033[0m')
+else
+  BOLD=""; DIM=""; RED=""; RESET=""
 fi
+err() { printf '%s%s%s\n' "$RED" "$*" "$RESET" >&2; }
+
+# --- parse arguments ------------------------------------------------------------
+FILTER=""
+SORT="${SORT:-updated}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --sort)    SORT="${2:?--sort needs a value: title, owner, visibility, or updated}"; shift 2 ;;
+    *)         FILTER="$1"; shift ;;
+  esac
+done
+
+# --- translate --sort into a real ORDER BY, via a fixed allowlist --------------
+# A case statement, not direct interpolation of $SORT - this is the one place
+# user input would otherwise reach raw SQL syntax (not just a quoted string
+# literal like the filter below), so only these four fixed expressions are
+# ever possible, regardless of what --sort is given.
+case "$SORT" in
+  title)      ORDER_BY='t.title ASC, t.id' ;;
+  owner)      ORDER_BY='COALESCE(u.email, t."ownerId") ASC, t.title' ;;
+  visibility) ORDER_BY='t.visibility ASC, t.title' ;;
+  updated)    ORDER_BY='t."updatedAt" DESC' ;;
+  *)          err "Invalid --sort value: '$SORT' (expected: title, owner, visibility, or updated)"; exit 1 ;;
+esac
 
 # Where docker-compose-fnf.yml / .env live. Defaults to the current directory,
 # matching "run this from the repo directory" - override (or cd elsewhere and
@@ -52,15 +84,6 @@ DB_SERVICE="${DB_SERVICE:-db}"
 DB_USER="${DB_USER:-tapestries}"
 DB_NAME="${DB_NAME:-tapestries}"
 BASE_URL="${BASE_URL:-}"
-FILTER="${1:-}"
-
-if [ -t 1 ]; then
-  BOLD=$(printf '\033[1m'); DIM=$(printf '\033[2m'); RED=$(printf '\033[31m')
-  RESET=$(printf '\033[0m')
-else
-  BOLD=""; DIM=""; RED=""; RESET=""
-fi
-err() { printf '%s%s%s\n' "$RED" "$*" "$RESET" >&2; }
 
 # --- build the compose command (include --env-file only if it exists) ---------
 command -v docker >/dev/null 2>&1 || { err "docker not found"; exit 1; }
@@ -97,20 +120,23 @@ if [ "${COUNT:-0}" -eq 0 ]; then
 fi
 
 # --- print the report -----------------------------------------------------------
-# Sorted most-recently-updated first - this is a status report, not a picker,
-# so "what's been active lately" is a more useful default than alphabetical.
+# Sorted most-recently-updated first by default (--sort/$SORT changes this) -
+# this is a status report, not a picker, so "what's been active lately" is a
+# more useful default than alphabetical.
 printf '\n%sTapestries%s' "$BOLD" "$RESET"
 [ -n "$FILTER" ] && printf ' %s(filter: %s)%s' "$DIM" "$FILTER" "$RESET"
+[ "$SORT" != "updated" ] && printf ' %s(sorted by: %s)%s' "$DIM" "$SORT" "$RESET"
 printf '\n'
 psql_exec -P pager=off -c "
   SELECT
     CASE WHEN length(t.title) > 40 THEN left(t.title, 40) || '…' ELSE t.title END AS title,
     COALESCE(u.email, t.\"ownerId\") AS owner,
+    t.visibility,
     to_char(t.\"updatedAt\", 'YYYY-MM-DD HH24:MI') AS last_updated,
     CASE WHEN u.username IS NOT NULL
       THEN concat('${BASE_URL}', '/u/', u.username, '/', t.slug)
       ELSE NULL
     END AS url
   ${FROM}
-  ORDER BY t.\"updatedAt\" DESC;
+  ORDER BY ${ORDER_BY};
 "
