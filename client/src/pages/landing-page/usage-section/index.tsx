@@ -98,7 +98,7 @@ export function UsageSection() {
             className={styles.reachOutButton}
             variant="mono"
             component="a"
-            href="mailto:tapestries@awmt.org"
+            href="mailto:danvisel@archive.org"
             target="_blank"
           >
             Reach out

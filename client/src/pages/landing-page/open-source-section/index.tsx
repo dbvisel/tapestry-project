@@ -44,7 +44,7 @@ export function OpenSourceSection() {
         <Button
           variant="mono"
           component="a"
-          href="https://github.com/asteasolutions/tapestry-project"
+          href="https://github.com/internetarchive/tapestry-project"
           target="_blank"
         >
           View GitHub Repo
@@ -53,7 +53,7 @@ export function OpenSourceSection() {
           variant="outline"
           className={styles.outlineButton}
           component="a"
-          href="mailto:tapestries@awmt.org"
+          href="mailto:danvisel@archive.org"
         >
           Contact
         </Button>

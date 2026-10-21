@@ -24,12 +24,12 @@ export function Footer() {
         <Text
           component="a"
           variant="bodySm"
-          href="https://github.com/asteasolutions/tapestry-project"
+          href="https://github.com/internetarchive/tapestry-project"
           target="_blank"
         >
           GitHub
         </Text>
-        <Text variant="bodySm" component="a" href="mailto:tapestries@awmt.org">
+        <Text variant="bodySm" component="a" href="mailto:danvisel@archive.org">
           Contact
         </Text>
       </div>

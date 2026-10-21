@@ -35,7 +35,7 @@ const SECOND_SNAPSHOT: TapestryListItem = {
   id: '',
   createdAt: new Date('Mar 21, 2025'),
   updatedAt: new Date('Mar 21, 2025'),
-  title: 'The Encyclopedia Project',
+  title: 'Dominoes',
   description:
     'Voyager published this laserdisc in 1991, gathering 15 Music Videos on political subjects + 1000+ photos from 70s underground newspapers',
   isBookmarked: false,
@@ -70,12 +70,12 @@ export function SnapshotsSection() {
       <div className={styles.cards}>
         <TapestryCard
           tapestry={FIRST_SNAPSHOT}
-          viewURL="https://tapestries.media/t/db673ba1-5231-4655-a3c0-28c1f0fbd58b"
+          viewURL="https://tapestries.archive.org/u/danvisel/encyclopedia-project"
           viewOnly
         />
         <TapestryCard
           tapestry={SECOND_SNAPSHOT}
-          viewURL="https://tapestries.media/t/46adbc20-70c8-4543-942c-be5115809906"
+          viewURL="https://tapestries.archive.org/u/danvisel/dominioes-by-john-re"
           viewOnly
         />
       </div>
