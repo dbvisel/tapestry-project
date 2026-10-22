@@ -35,9 +35,19 @@ export async function parseMediaSource(
     if (ipv4UrlRegex.test(source)) {
       throw new InvalidSourceError()
     }
-    // fail URLs that contain archive.org but are not https://archive.org or https://web.archive.org or that look like DNS.
-    const archiveOrgRegex = /^(?!(?:https?:\/\/)?(?:web\.)?archive\.org)(?=.*archive\.org).*$/i
-    if (archiveOrgRegex.test(source)) {
+    // fail URLs that mention archive.org but aren't actually hosted on one of
+    // these specific, known-real hosts (lookalike/spoofed domains, e.g.
+    // archive.org.evil.com) - checked against the URL's real hostname, not a
+    // substring match, so this deployment's own domain is never mistaken for
+    // a lookalike. Every other archive.org subdomain stays restricted.
+    const ALLOWED_ARCHIVE_ORG_HOSTS = [
+      'archive.org',
+      'web.archive.org',
+      'tapestries.archive.org',
+      'iiif.archive.org',
+    ]
+    const { hostname } = new URL(source)
+    if (/archive\.org/i.test(source) && !ALLOWED_ARCHIVE_ORG_HOSTS.includes(hostname)) {
       throw new InvalidSourceError()
     }
   }
