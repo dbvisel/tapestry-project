@@ -67,6 +67,7 @@ import {
 } from 'tapestry-core-client/src/view-model/utils'
 import { DEFAULT_LAYER } from '../../pages/tapestry/view-model/utils'
 import { ItemViewModel } from 'tapestry-core-client/src/view-model'
+import { ScreenshotMode } from 'tapestry-core/src/data-format/schemas/common'
 import {
   ItemThumbnailController,
   LoadedRendition,
@@ -182,7 +183,7 @@ export function fromTapestryDto(
   commentThreads: CommentThreadsDto,
   presentationSteps: PresentationStepDto[],
   deoptimize: boolean,
-  hideControls: boolean,
+  screenshotMode: ScreenshotMode | undefined,
 ): EditableTapestryViewModel {
   const presentationStepViewModels = presentationSteps.map((dto) => ({ dto }))
 
@@ -202,7 +203,7 @@ export function fromTapestryDto(
   const editableTapestryViewModel: EditableTapestryViewModel = {
     ...baseViewModel,
     disableOptimizations: mode === 'edit' || deoptimize,
-    hideControls,
+    screenshotMode,
     items: Object.fromEntries(tapestry.items?.map((item) => [item.id, { dto: item }]) ?? []),
     rels: Object.fromEntries(tapestry.rels?.map((rel) => [rel.id, { dto: rel }]) ?? []),
     groups: Object.fromEntries(tapestry.groups?.map((group) => [group.id, { dto: group }]) ?? []),
@@ -230,7 +231,7 @@ export function fromTapestryDto(
 
 export const itemSizes = {
   actionButton: { width: 350, height: 75 },
-  audio: { width: 300, height: 50 },
+  audio: { width: 400, height: 50 },
   book: { width: 700, height: 500 },
   image: getImageItemSize,
   iiif: getIiifItemSize,
