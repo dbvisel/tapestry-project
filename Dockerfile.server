@@ -18,32 +18,57 @@ ENTRYPOINT ["npm", "run"]
 CMD ["start:api"]
 
 
-# FROM node:24-alpine AS worker
-FROM node:24.14.1-alpine3.22 AS worker
+# Alpine's `chromium` apk package is frozen at 142.0.7444.59 (v3.22 branch hasn't
+# moved since 2025-11-01) and has no build matching the Chrome 156.0.8078.80 CVE
+# fixes. Chrome-for-Testing has no musl build at all, so the worker's browser now
+# comes from a self-contained Debian stage instead of Alpine's apk package.
+# Pinned to linux/amd64 (production's real architecture) so the cached Chrome path
+# below is correct regardless of what architecture this gets built on.
+FROM --platform=linux/amd64 node:24-bookworm AS worker
 
-RUN apk add --no-cache \
-  chromium \
-  nss \
-  freetype \
-  harfbuzz \
-  ca-certificates \
-  ttf-freefont \
-  font-liberation \
-  nodejs \
-  mesa-gl \
-  mesa-dev \
-  vulkan-loader \
-  chromium-swiftshader \
-  yarn \
-  ffmpeg \
-  imagemagick \
-  ghostscript;
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg \
+      imagemagick \
+      ghostscript \
+      fonts-liberation \
+      fonts-freefont-ttf \
+      ca-certificates \
+      yarn
 
-COPY --from=server /app /app
+# Debian's ImageMagick disables the PDF coder by default (2016 ImageTragick
+# hardening); pdf.ts's thumbnail generator reads PDFs via `magick pdf:-[...]`.
+RUN sed -i '/pattern="PDF"/s/rights="none"/rights="read"/' /etc/ImageMagick-6/policy.xml
 
-WORKDIR /app/server/
+# Debian bookworm ships ImageMagick 6 (6.9.11.60), which has no `magick` binary at
+# all (that's an ImageMagick 7 command, which is what Alpine shipped) - only the
+# legacy `convert`/`identify`. Confirmed via a real local build: pdf.ts's
+# `spawn('magick', ...)` failed with ENOENT. `convert` takes the exact same CLI
+# arguments pdf.ts already uses, so a compatibility symlink is a cleaner fix than
+# changing shared application code for a packaging difference between distros.
+RUN ln -s /usr/bin/convert /usr/bin/magick
 
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ADD package.json package-lock.json /app/
+ADD core/package.json /app/core/
+ADD shared/package.json /app/shared/
+ADD server/package.json /app/server/
+
+RUN cd /app && npm ci
+
+ADD core/ /app/core
+ADD shared/ /app/shared
+ADD server/ /app/server
+
+WORKDIR /app/server
+RUN npm run prisma:generate
+
+# Pin the exact patched Chrome-for-Testing build directly from Google, rather than
+# trusting Alpine's packaging cadence or Puppeteer's own bundled pin (currently
+# 156.0.8078.47, one patch build behind the fix). `--install-deps` is Puppeteer's
+# own maintained apt dependency installer.
+RUN npx puppeteer browsers install chrome@156.0.8078.80 --install-deps \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PUPPETEER_EXECUTABLE_PATH=/root/.cache/puppeteer/chrome/linux-156.0.8078.80/chrome-linux64/chrome
 
 ENTRYPOINT ["npm", "run"]
 CMD ["start:worker"]
