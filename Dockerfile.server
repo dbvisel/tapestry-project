@@ -19,8 +19,8 @@ CMD ["start:api"]
 
 
 # Alpine's `chromium` apk package is frozen at 142.0.7444.59 (v3.22 branch hasn't
-# moved since 2025-11-01) and has no build matching the Chrome 156.0.8078.80 CVE
-# fixes. Chrome-for-Testing has no musl build at all, so the worker's browser now
+# moved since 2025-11-01) and has no build matching the Chrome CVE fixes needed
+# here. Chrome-for-Testing has no musl build at all, so the worker's browser now
 # comes from a self-contained Debian stage instead of Alpine's apk package.
 # Pinned to linux/amd64 (production's real architecture) so the cached Chrome path
 # below is correct regardless of what architecture this gets built on.
@@ -62,13 +62,13 @@ WORKDIR /app/server
 RUN npm run prisma:generate
 
 # Pin the exact patched Chrome-for-Testing build directly from Google, rather than
-# trusting Alpine's packaging cadence or Puppeteer's own bundled pin (currently
-# 156.0.8078.47, one patch build behind the fix). `--install-deps` is Puppeteer's
-# own maintained apt dependency installer.
-RUN npx puppeteer browsers install chrome@156.0.8078.80 --install-deps \
+# trusting Alpine's packaging cadence or Puppeteer's own bundled pin (which lags
+# the latest CVE fixes). `--install-deps` is Puppeteer's own maintained apt
+# dependency installer.
+RUN npx puppeteer browsers install chrome@157.0.8103.38 --install-deps \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_EXECUTABLE_PATH=/root/.cache/puppeteer/chrome/linux-156.0.8078.80/chrome-linux64/chrome
+ENV PUPPETEER_EXECUTABLE_PATH=/root/.cache/puppeteer/chrome/linux-157.0.8103.38/chrome-linux64/chrome
 
 ENTRYPOINT ["npm", "run"]
 CMD ["start:worker"]
