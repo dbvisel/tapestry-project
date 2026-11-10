@@ -65,10 +65,10 @@ RUN npm run prisma:generate
 # trusting Alpine's packaging cadence or Puppeteer's own bundled pin (which lags
 # the latest CVE fixes). `--install-deps` is Puppeteer's own maintained apt
 # dependency installer.
-RUN npx puppeteer browsers install chrome@157.0.8103.38 --install-deps \
+RUN npx puppeteer browsers install chrome@157.0.8103.50 --install-deps \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PUPPETEER_EXECUTABLE_PATH=/root/.cache/puppeteer/chrome/linux-157.0.8103.38/chrome-linux64/chrome
+ENV PUPPETEER_EXECUTABLE_PATH=/root/.cache/puppeteer/chrome/linux-157.0.8103.50/chrome-linux64/chrome
 
 ENTRYPOINT ["npm", "run"]
 CMD ["start:worker"]
