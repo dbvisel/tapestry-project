@@ -203,15 +203,17 @@ services:
     volumes:
       - minio-data:/data
     ports:
-      - "3202:3202"
       - "9001:9001"
     # command: server /data
+    # Cut over to SeaweedFS (2026-11-11): the "3202:3202" mapping moved to the
+    # seaweedfs service below. minio-data/the minio service are kept, stopped, as an
+    # immediate rollback path — to roll back, stop seaweedfs, restore this mapping,
+    # and `docker compose up -d minio server worker`.
 
-  # SeaweedFS replacement for the minio/mc services above, brought up alongside them
-  # (no host port mapped yet) so data can be mirrored from MinIO before cutover. At
-  # cutover: stop `minio`, add `"3202:8333"` to this service's `ports`, and remove this
-  # comment. Internally reachable from other services on this network regardless, as
-  # http://seaweedfs:8333.
+  # SeaweedFS, now the active object store (cut over 2026-11-11) — was brought up
+  # alongside MinIO first (no host port) to mirror data over before taking over
+  # MinIO's host port 3202. Internally reachable from other services on this network
+  # regardless, as http://seaweedfs:8333.
   seaweedfs:
     image: chrislusf/seaweedfs:4.50
     command: mini -dir=/data -admin.allowInsecureBind
@@ -220,6 +222,8 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     volumes:
       - seaweedfs-data:/data
+    ports:
+      - "3202:8333"
 
   seaweedfs-s3-init:
     image: amazon/aws-cli:2.27.0
