@@ -22,6 +22,19 @@ services:
     #   - traefik.http.routers.${ENVIRONMENT_NAME}.entrypoints=https
     #   - traefik.http.routers.${ENVIRONMENT_NAME}.tls=true
 
+  # Static deployment/maintenance-page, serving the same host port 8080 as `client`.
+  # Off by default (the "maintenance" profile) so normal `up -d` never starts it.
+  # To use: `docker compose stop client && docker compose --profile maintenance up -d
+  # maintenance`; to revert: `docker compose stop maintenance && docker compose up -d
+  # client`.
+  maintenance:
+    image: nginx:alpine
+    profiles: ["maintenance"]
+    ports:
+      - 8080:80
+    volumes:
+      - ./deployment/maintenance-page:/usr/share/nginx/html:ro
+
   server:
     build:
       dockerfile: ./Dockerfile.server
