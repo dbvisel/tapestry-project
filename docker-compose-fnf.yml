@@ -207,6 +207,36 @@ services:
       - "9001:9001"
     # command: server /data
 
+  # SeaweedFS replacement for the minio/mc services above, brought up alongside them
+  # (no host port mapped yet) so data can be mirrored from MinIO before cutover. At
+  # cutover: stop `minio`, add `"3202:8333"` to this service's `ports`, and remove this
+  # comment. Internally reachable from other services on this network regardless, as
+  # http://seaweedfs:8333.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.50
+    command: mini -dir=/data -admin.allowInsecureBind
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - seaweedfs-data:/data
+
+  seaweedfs-s3-init:
+    image: amazon/aws-cli:2.27.0
+    entrypoint: ["/scripts/init.sh"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+      S3_ENDPOINT: http://seaweedfs:8333
+      CORS_CONFIG_FILE: cors-config-prod.json
+    volumes:
+      - ./deployment/s3:/scripts:ro
+    depends_on:
+      - seaweedfs
+    restart: "no"
+
 # networks:
 #   database:
 #   redis:
@@ -219,3 +249,4 @@ volumes:
   pgdata:
   vault-data:
   minio-data:
+  seaweedfs-data:
