@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 #
 # backup-tapestry.sh - Back up a Tapestry installation's Postgres database,
-# and its MinIO object storage volume if the install has one.
+# and its SeaweedFS object storage volume if the install has one.
+#
+# For an install still on MinIO (not SeaweedFS), use the sibling
+# backup-tapestry-minio.sh instead - kept for historical/MinIO-only installs.
 #
 # Meant to run both interactively and unattended (cron / systemd timer).
 # Exits non-zero on any real failure so a scheduler can detect and alert on it.
 #
-# Runs against the Postgres/MinIO services via `docker compose exec`/`docker
+# Runs against the Postgres/SeaweedFS services via `docker compose exec`/`docker
 # inspect` (the same way you'd reach them by hand). Run it with the project
 # directory as REPO_DIR (default: the current directory), or pass
 # --project-dir - same convention as the sibling tapestry-frame-thumbnails and
@@ -26,22 +29,22 @@
 #   REPO_DIR=.
 #   COMPOSE_FILE=docker-compose.yml
 #   ENV_FILE=.env
-#   DB_SERVICE=db   MINIO_SERVICE=minio
+#   DB_SERVICE=db   SEAWEEDFS_SERVICE=seaweedfs
 #   BACKUP_DIR=~/tapestry-backups   KEEP=14
 #
 # Options:
-#   --project-dir DIR    Same as setting REPO_DIR (default: $REPO_DIR or cwd)
-#   --compose-file FILE  Same as setting COMPOSE_FILE
-#   --env-file FILE      Same as setting ENV_FILE
-#   --db-service NAME    Same as setting DB_SERVICE
-#   --minio-service NAME Same as setting MINIO_SERVICE
-#   --backup-dir DIR     Same as setting BACKUP_DIR
-#   --keep N             Same as setting KEEP
-#   -h, --help           Show this help and exit
+#   --project-dir DIR        Same as setting REPO_DIR (default: $REPO_DIR or cwd)
+#   --compose-file FILE      Same as setting COMPOSE_FILE
+#   --env-file FILE          Same as setting ENV_FILE
+#   --db-service NAME        Same as setting DB_SERVICE
+#   --seaweedfs-service NAME Same as setting SEAWEEDFS_SERVICE
+#   --backup-dir DIR         Same as setting BACKUP_DIR
+#   --keep N                 Same as setting KEEP
+#   -h, --help               Show this help and exit
 #
 # Examples:
 #   ./backup-tapestry.sh
-#   COMPOSE_FILE=docker-compose.minio.yml ./backup-tapestry.sh --keep 30
+#   COMPOSE_FILE=docker-compose-fnf.yml ./backup-tapestry.sh --keep 30
 #
 set -euo pipefail
 
@@ -62,21 +65,21 @@ PROJECT_DIR="${REPO_DIR:-.}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 ENV_FILE="${ENV_FILE:-.env}"
 DB_SERVICE="${DB_SERVICE:-db}"
-MINIO_SERVICE="${MINIO_SERVICE:-minio}"
+SEAWEEDFS_SERVICE="${SEAWEEDFS_SERVICE:-seaweedfs}"
 BACKUP_DIR="${BACKUP_DIR:-$HOME/tapestry-backups}"
 KEEP="${KEEP:-14}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --project-dir)   PROJECT_DIR="${2:?--project-dir needs a path}"; shift 2 ;;
-    --compose-file)  COMPOSE_FILE="${2:?--compose-file needs a filename}"; shift 2 ;;
-    --env-file)      ENV_FILE="${2:?--env-file needs a filename}"; shift 2 ;;
-    --db-service)    DB_SERVICE="${2:?--db-service needs a name}"; shift 2 ;;
-    --minio-service) MINIO_SERVICE="${2:?--minio-service needs a name}"; shift 2 ;;
-    --backup-dir)    BACKUP_DIR="${2:?--backup-dir needs a path}"; shift 2 ;;
-    --keep)          KEEP="${2:?--keep needs a number}"; shift 2 ;;
-    -h|--help)       grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *)               err "Unknown argument: $1"; exit 2 ;;
+    --project-dir)       PROJECT_DIR="${2:?--project-dir needs a path}"; shift 2 ;;
+    --compose-file)      COMPOSE_FILE="${2:?--compose-file needs a filename}"; shift 2 ;;
+    --env-file)          ENV_FILE="${2:?--env-file needs a filename}"; shift 2 ;;
+    --db-service)        DB_SERVICE="${2:?--db-service needs a name}"; shift 2 ;;
+    --seaweedfs-service) SEAWEEDFS_SERVICE="${2:?--seaweedfs-service needs a name}"; shift 2 ;;
+    --backup-dir)        BACKUP_DIR="${2:?--backup-dir needs a path}"; shift 2 ;;
+    --keep)              KEEP="${2:?--keep needs a number}"; shift 2 ;;
+    -h|--help)           grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *)                   err "Unknown argument: $1"; exit 2 ;;
   esac
 done
 
@@ -147,35 +150,35 @@ else
   rc=1
 fi
 
-# --- MinIO (only if this install actually has one running) --------------------
-MINIO_CID="$("${COMPOSE[@]}" ps -q "$MINIO_SERVICE" 2>/dev/null || true)"
-if [ -z "$MINIO_CID" ]; then
-  info "No running '$MINIO_SERVICE' service (not part of this install, or S3 backend is real AWS) — skipping MinIO backup"
+# --- SeaweedFS (only if this install actually has one running) ----------------
+SEAWEEDFS_CID="$("${COMPOSE[@]}" ps -q "$SEAWEEDFS_SERVICE" 2>/dev/null || true)"
+if [ -z "$SEAWEEDFS_CID" ]; then
+  info "No running '$SEAWEEDFS_SERVICE' service (not part of this install, still on MinIO - see backup-tapestry-minio.sh, or S3 backend is real AWS) — skipping SeaweedFS backup"
 else
-  info "Backing up MinIO data volume..."
+  info "Backing up SeaweedFS data volume..."
   # Discover the volume backing /data by inspecting the running container,
   # rather than assuming a volume name — Compose derives volume names from
   # the project name (checkout directory), which varies between installs.
-  MINIO_VOLUME="$(docker inspect "$MINIO_CID" \
+  SEAWEEDFS_VOLUME="$(docker inspect "$SEAWEEDFS_CID" \
     --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-  if [ -z "$MINIO_VOLUME" ]; then
-    err "Could not determine MinIO's /data volume from container $MINIO_CID"
+  if [ -z "$SEAWEEDFS_VOLUME" ]; then
+    err "Could not determine SeaweedFS's /data volume from container $SEAWEEDFS_CID"
     rc=1
   else
-    MINIO_FILE="$BACKUP_DIR/minio_${TIMESTAMP}.tar.gz"
-    if docker run --rm -v "${MINIO_VOLUME}:/data:ro" -v "$BACKUP_DIR:/backup" alpine \
-         tar czf "/backup/$(basename "$MINIO_FILE")" -C /data . ; then
-      SIZE="$(wc -c < "$MINIO_FILE" | tr -d ' ')"
+    SEAWEEDFS_FILE="$BACKUP_DIR/seaweedfs_${TIMESTAMP}.tar.gz"
+    if docker run --rm -v "${SEAWEEDFS_VOLUME}:/data:ro" -v "$BACKUP_DIR:/backup" alpine \
+         tar czf "/backup/$(basename "$SEAWEEDFS_FILE")" -C /data . ; then
+      SIZE="$(wc -c < "$SEAWEEDFS_FILE" | tr -d ' ')"
       if [ "$SIZE" -gt 0 ]; then
-        ok "MinIO backup OK: $MINIO_FILE ($SIZE bytes)"
+        ok "SeaweedFS backup OK: $SEAWEEDFS_FILE ($SIZE bytes)"
       else
-        err "MinIO backup is empty: $MINIO_FILE"
-        rm -f "$MINIO_FILE"
+        err "SeaweedFS backup is empty: $SEAWEEDFS_FILE"
+        rm -f "$SEAWEEDFS_FILE"
         rc=1
       fi
     else
-      err "MinIO volume backup failed"
-      rm -f "$MINIO_FILE"
+      err "SeaweedFS volume backup failed"
+      rm -f "$SEAWEEDFS_FILE"
       rc=1
     fi
   fi
@@ -183,7 +186,7 @@ fi
 
 # --- retention ------------------------------------------------------------------
 prune "Postgres" "pg_${DB_NAME}_*.dump"
-prune "MinIO" "minio_*.tar.gz"
+prune "SeaweedFS" "seaweedfs_*.tar.gz"
 
 if [ "$rc" -eq 0 ]; then
   ok "Backup complete."
