@@ -94,6 +94,13 @@ get_env() {
 DB_NAME="$(get_env DB_NAME "$ENV_FILE")"; DB_NAME="${DB_NAME:-tapestries}"
 DB_USER="$(get_env DB_USER "$ENV_FILE")"; DB_USER="${DB_USER:-tapestries}"
 
+# Compose prints a "variable is not set" WARN line to stderr for every var the
+# compose file references that isn't in ENV_FILE - unrelated to this script and
+# unhelpful mixed into psql's own stderr, so drop just those known lines.
+drop_compose_var_warnings() {
+  grep -vE '^WARN\[[0-9]+\] +The "[^"]+" variable is not set\.' || true
+}
+
 section "Recent HTTP traffic ($CLIENT_SERVICE - page/JS/CSS requests only; images/fonts aren't logged)"
 for w in $WINDOWS; do
   logs=$("${COMPOSE[@]}" logs --since="$w" "$CLIENT_SERVICE" 2>/dev/null || true)
@@ -110,11 +117,11 @@ done
 
 section "Postgres: active (non-idle) connections right now"
 "${COMPOSE[@]}" exec -T "$DB_SERVICE" psql -U "$DB_USER" -d "$DB_NAME" -c \
-  "SELECT state, count(*) FROM pg_stat_activity WHERE datname = current_database() GROUP BY state ORDER BY count(*) DESC;" 2>&1 || true
+  "SELECT state, count(*) FROM pg_stat_activity WHERE datname = current_database() GROUP BY state ORDER BY count(*) DESC;" 2>&1 | drop_compose_var_warnings
 
 section "Authenticated tapestry viewing in the last 15 minutes (TapestryInteraction.lastSeen)"
 "${COMPOSE[@]}" exec -T "$DB_SERVICE" psql -U "$DB_USER" -d "$DB_NAME" -c \
-  "SELECT count(DISTINCT \"userId\") AS distinct_users, count(*) AS interactions FROM \"TapestryInteraction\" WHERE \"lastSeen\" > now() - interval '15 minutes';" 2>&1 || true
+  "SELECT count(DISTINCT \"userId\") AS distinct_users, count(*) AS interactions FROM \"TapestryInteraction\" WHERE \"lastSeen\" > now() - interval '15 minutes';" 2>&1 | drop_compose_var_warnings
 
 section "Container resource snapshot (context only, not a usage signal)"
 docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>/dev/null || true
