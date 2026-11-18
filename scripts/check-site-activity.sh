@@ -94,11 +94,16 @@ get_env() {
 DB_NAME="$(get_env DB_NAME "$ENV_FILE")"; DB_NAME="${DB_NAME:-tapestries}"
 DB_USER="$(get_env DB_USER "$ENV_FILE")"; DB_USER="${DB_USER:-tapestries}"
 
-# Compose prints a "variable is not set" WARN line to stderr for every var the
+# Compose prints a "variable is not set" warning to stderr for every var the
 # compose file references that isn't in ENV_FILE - unrelated to this script and
 # unhelpful mixed into psql's own stderr, so drop just those known lines.
+# Compose's own formatter switches between a plain "WARN[0000] ..." form when
+# attached to a TTY and a "time=... level=warning msg=..." logfmt form once
+# piped (confirmed: the exact same command produced each on a real run,
+# depending only on whether this function was in the pipeline) - match on the
+# stable substring both forms share instead of anchoring to either format.
 drop_compose_var_warnings() {
-  grep -vE '^WARN\[[0-9]+\] +The "[^"]+" variable is not set\.' || true
+  grep -vi 'variable is not set' || true
 }
 
 section "Recent HTTP traffic ($CLIENT_SERVICE - page/JS/CSS requests only; images/fonts aren't logged)"
